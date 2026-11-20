@@ -7,6 +7,10 @@ x-backend-env: &backend-env
   SPRING_DATA_REDIS_HOST: redis
   SPRING_DATA_REDIS_PORT: "6379"
   CODETRACE_CORS_ORIGINS: ${CODETRACE_CORS_ORIGINS:-http://localhost:3000}
+  # LOCAL repositories must live under this (read-only) mount. See scripts/make-demo-repo.*
+  CODETRACE_INGESTION_LOCAL_ROOTS: /repos
+
+x-local-repos: &local-repos ${CODETRACE_LOCAL_REPOS_DIR:-./data/local-repos}:/repos:ro
 
 services:
   postgres:
@@ -40,6 +44,8 @@ services:
     environment:
       <<: *backend-env
       SPRING_PROFILES_ACTIVE: api
+    volumes:
+      - *local-repos
     ports:
       - "${API_PORT:-8080}:8080"
     depends_on:
@@ -59,6 +65,9 @@ services:
     environment:
       <<: *backend-env
       SPRING_PROFILES_ACTIVE: worker
+    volumes:
+      - *local-repos
+      - workspaces:/data/workspaces   # bare clones of remote repositories
     depends_on:
       api:
         condition: service_healthy
@@ -76,3 +85,4 @@ services:
 
 volumes:
   pgdata:
+  workspaces:
