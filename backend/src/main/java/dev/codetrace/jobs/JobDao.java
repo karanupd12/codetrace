@@ -92,10 +92,12 @@ public class JobDao {
         finish(id, "DEAD_LETTERED", category, message);
     }
 
-    public void markSyncSucceeded(UUID id) {
+    /** Marks the job SUCCEEDED unless a handler already finished it (INDEX does so inside its result transaction). */
+    public void markSucceededIfRunning(UUID id) {
         jdbc.sql("""
                 update index_job set status = 'SUCCEEDED', finished_at = now(), updated_at = now(),
-                    error_category = null, error_message = null where id = :id""").param("id", id).update();
+                    error_category = null, error_message = null where id = :id and status = 'RUNNING'""")
+                .param("id", id).update();
     }
 
     /** Back to QUEUED for a delayed retry; the sweeper republishes it after the retry delay. */

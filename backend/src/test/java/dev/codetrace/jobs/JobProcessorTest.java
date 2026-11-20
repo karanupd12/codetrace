@@ -5,23 +5,17 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import dev.codetrace.ingestion.GitSourceManager;
 import dev.codetrace.ingestion.IngestionException;
 import dev.codetrace.ingestion.IngestionException.Category;
-import dev.codetrace.ingestion.JavaIndexer;
-import dev.codetrace.ingestion.RevisionDiscovery;
 import dev.codetrace.jobs.JobDao.Job;
-import dev.codetrace.repository.RepositoryDao;
-import dev.codetrace.repository.RepositoryDao.Repo;
-import dev.codetrace.repository.SourceType;
 import dev.codetrace.support.GitFixtures;
-import dev.codetrace.symbols.IndexResultWriter;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -31,27 +25,23 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.QueryTimeoutException;
 
-/** Retry, dead-letter and idempotency rules of the job state machine, with collaborators mocked. */
+/** Retry, dead-letter, dispatch and idempotency rules of the job state machine, with collaborators mocked. */
 class JobProcessorTest {
     private final UUID jobId = UUID.randomUUID();
     private final UUID repoId = UUID.randomUUID();
 
     private JobDao jobs;
-    private RepositoryDao repos;
-    private GitSourceManager git;
+    private JobHandler handler;
     private JobPublisher publisher;
     private JobProcessor processor;
 
     @BeforeEach
     void setUp() {
         jobs = mock(JobDao.class);
-        repos = mock(RepositoryDao.class);
-        git = mock(GitSourceManager.class);
         publisher = mock(JobPublisher.class);
-        processor = new JobProcessor(jobs, repos, git, mock(RevisionDiscovery.class), mock(JavaIndexer.class),
-                mock(IndexResultWriter.class), publisher, GitFixtures.props(Path.of("ws"), List.of())); // maxAttempts=3
-        when(repos.find(repoId)).thenReturn(Optional.of(new Repo(repoId, SourceType.GIT_URL,
-                "https://github.com/o/r", "o/r", "PENDING", null, null, OffsetDateTime.now())));
+        handler = mock(JobHandler.class);
+        when(handler.operation()).thenReturn("SYNC");
+        processor = new JobProcessor(jobs, publisher, GitFixtures.props(Path.of("ws"), List.of()), List.of(handler)); // maxAttempts=3
     }
 
     private Job job(String op, int attempts) {
@@ -70,60 +60,98 @@ class JobProcessorTest {
 
         processor.process(jobId);
 
-        verifyNoInteractions(git, publisher);
+        verify(handler, never()).handle(any());
+        verifyNoInteractions(publisher);
         verify(jobs, never()).markFailed(any(), any(), any());
         verify(jobs, never()).markForRetry(any(), any(), any());
     }
 
     @Test
+    void dispatchesToTheHandlerOwningTheOperationAndMarksSuccess() {
+        JobHandler other = mock(JobHandler.class);
+        when(other.operation()).thenReturn("INDEX");
+        processor = new JobProcessor(jobs, publisher, GitFixtures.props(Path.of("ws"), List.of()), List.of(handler, other));
+        claimed(job("INDEX", 1));
+
+        processor.process(jobId);
+
+        verify(other).handle(any());
+        verify(handler, never()).handle(any());
+        verify(jobs).markSucceededIfRunning(jobId);
+    }
+
+    @Test
+    void duplicateHandlersForOneOperationFailFastAtStartup() {
+        JobHandler twin = mock(JobHandler.class);
+        when(twin.operation()).thenReturn("SYNC");
+
+        assertThatThrownBy(() -> new JobProcessor(jobs, publisher, GitFixtures.props(Path.of("ws"), List.of()),
+                List.of(handler, twin))).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void unknownOperationsFailPermanentlyWithoutRetry() {
+        claimed(job("MYSTERY", 1));
+
+        processor.process(jobId);
+
+        verify(jobs).markFailed(eq(jobId), eq("INTERNAL"), anyString());
+        verify(jobs, never()).markForRetry(any(), any(), any());
+        verify(handler, never()).handle(any());
+    }
+
+    @Test
     void retryableFailureBeforeTheLimitSchedulesARetry() {
         claimed(job("SYNC", 1));
-        when(git.open(any())).thenThrow(new IngestionException(Category.GIT_ERROR, "network"));
+        doThrow(new IngestionException(Category.GIT_ERROR, "network")).when(handler).handle(any());
 
         processor.process(jobId);
 
         verify(jobs).markForRetry(eq(jobId), eq("GIT_ERROR"), anyString());
         verify(jobs, never()).markDeadLettered(any(), any(), any());
         verify(jobs, never()).markFailed(any(), any(), any());
+        verify(jobs, never()).markSucceededIfRunning(any());
         verifyNoInteractions(publisher);
     }
 
     @Test
     void retryableFailureAtTheLimitIsDeadLettered() {
-        claimed(job("SYNC", 3));
-        when(git.open(any())).thenThrow(new IngestionException(Category.GIT_ERROR, "network"));
+        Job j = job("SYNC", 3);
+        claimed(j);
+        doThrow(new IngestionException(Category.GIT_ERROR, "network")).when(handler).handle(any());
 
         processor.process(jobId);
 
         verify(jobs).markDeadLettered(eq(jobId), eq("GIT_ERROR"), anyString());
         verify(publisher).publishDead(jobId, "GIT_ERROR");
-        verify(repos).markSyncFailed(repoId);
+        verify(handler).onPermanentFailure(j);
         verify(jobs, never()).markForRetry(any(), any(), any());
     }
 
     @Test
-    void permanentFailuresAreNeverRetried() {
+    void permanentFailuresAreNeverRetriedAndNotifyTheHandler() {
         for (Category c : List.of(Category.LIMIT_EXCEEDED, Category.INVALID_SOURCE, Category.REPOSITORY_UNAVAILABLE,
                 Category.REVISION_NOT_FOUND, Category.TIMEOUT)) {
             jobs = mock(JobDao.class);
-            git = mock(GitSourceManager.class); // fresh mock: a previous iteration's stubbing would throw on re-stub
-            processor = new JobProcessor(jobs, repos, git, mock(RevisionDiscovery.class), mock(JavaIndexer.class),
-                    mock(IndexResultWriter.class), publisher, GitFixtures.props(Path.of("ws"), List.of()));
-            claimed(job("SYNC", 1));
-            when(git.open(any())).thenThrow(new IngestionException(c, "nope"));
+            handler = mock(JobHandler.class); // fresh mocks: earlier stubbing would otherwise throw on re-stub
+            when(handler.operation()).thenReturn("SYNC");
+            processor = new JobProcessor(jobs, publisher, GitFixtures.props(Path.of("ws"), List.of()), List.of(handler));
+            Job j = job("SYNC", 1);
+            claimed(j);
+            doThrow(new IngestionException(c, "nope")).when(handler).handle(any());
 
             processor.process(jobId);
 
             verify(jobs).markFailed(eq(jobId), eq(c.name()), anyString());
             verify(jobs, never()).markForRetry(any(), any(), any());
+            verify(handler).onPermanentFailure(j);
         }
-        verify(repos, org.mockito.Mockito.atLeastOnce()).markSyncFailed(repoId);
     }
 
     @Test
     void unexpectedExceptionsAreRecordedByTypeOnly() {
         claimed(job("SYNC", 1));
-        when(git.open(any())).thenThrow(new IllegalStateException("/secret/server/path leaked"));
+        doThrow(new IllegalStateException("/secret/server/path leaked")).when(handler).handle(any());
 
         processor.process(jobId);
 
@@ -133,19 +161,21 @@ class JobProcessorTest {
 
     @Test
     void staleJobsThatExhaustedAttemptsAreDeadLetteredWithoutRunning() {
-        claimed(job("INDEX", 4)); // claim() already incremented past maxAttempts=3
+        Job j = job("SYNC", 4); // claim() already incremented past maxAttempts=3
+        claimed(j);
 
         processor.process(jobId);
 
         verify(jobs).markDeadLettered(eq(jobId), anyString(), anyString());
         verify(publisher).publishDead(eq(jobId), anyString());
-        verifyNoInteractions(git);
+        verify(handler).onPermanentFailure(j);
+        verify(handler, never()).handle(any());
     }
 
     @Test
     void databaseFaultsPropagateSoTheMessageStaysPending() {
         claimed(job("SYNC", 1));
-        when(git.open(any())).thenThrow(new QueryTimeoutException("db down"));
+        doThrow(new QueryTimeoutException("db down")).when(handler).handle(any());
 
         assertThatThrownBy(() -> processor.process(jobId)).isInstanceOf(QueryTimeoutException.class);
 
