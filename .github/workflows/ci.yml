@@ -21,6 +21,9 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
+      # Runner Docker requires API >= 1.40; the Testcontainers bundled with Spring Boot 3.5.x defaults to 1.32.
+      - name: Pin Docker API version for Testcontainers
+        run: echo "api.version=1.44" > ~/.docker-java.properties
       - name: Build and test (unit + Testcontainers ITs)
         run: ./mvnw -B verify
 
