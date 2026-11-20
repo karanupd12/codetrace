@@ -68,9 +68,17 @@ services:
     volumes:
       - *local-repos
       - workspaces:/data/workspaces   # bare clones of remote repositories
+    ports:
+      - "127.0.0.1:${WORKER_MANAGEMENT_PORT:-8081}:8081"   # actuator health only, no REST API
     depends_on:
       api:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8081/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
 
   frontend:
     build:
@@ -83,6 +91,38 @@ services:
       api:
         condition: service_healthy
 
+  # ---- optional monitoring tools: docker compose --profile tools up -d ----
+
+  # Browse the job streams (codetrace:jobs, codetrace:jobs:dead), the consumer group and pending messages.
+  redisinsight:
+    image: redis/redisinsight:2.70
+    profiles: ["tools"]
+    environment:
+      RI_REDIS_HOST: redis
+      RI_REDIS_PORT: "6379"
+      RI_REDIS_ALIAS: codetrace
+      RI_ACCEPT_TERMS_AND_CONDITIONS: "true"   # local dev tool; also turns analytics off
+    ports:
+      - "127.0.0.1:${REDISINSIGHT_PORT:-5540}:5540"
+    volumes:
+      - redisinsight:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # Live logs of every container in this project (worker job progress, API requests).
+  dozzle:
+    image: amir20/dozzle:v8.13
+    profiles: ["tools"]
+    environment:
+      DOZZLE_FILTER: label=com.docker.compose.project=codetrace
+      DOZZLE_NO_ANALYTICS: "true"
+    ports:
+      - "127.0.0.1:${DOZZLE_PORT:-8888}:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
 volumes:
   pgdata:
   workspaces:
+  redisinsight:

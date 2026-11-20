@@ -71,6 +71,22 @@ docker compose up --build
 
 Stop with `docker compose down`. Add `-v` to also delete the database and cloned repositories.
 
+### Monitoring the jobs (optional)
+
+Start two extra tools alongside the stack to watch background work as it happens:
+
+```bash
+docker compose --profile tools up -d
+```
+
+| Tool | URL | What you see |
+|---|---|---|
+| **RedisInsight** | http://localhost:5540 | The `codetrace:jobs` stream and dead-letter stream, the `indexers` consumer group, pending messages and lag. The connection to Redis is pre-configured. |
+| **Dozzle** | http://localhost:8888 | Live, searchable logs of every container: each job's attempts and outcome in the worker, and each request in the API. |
+| **Worker health** | http://localhost:8081/actuator/health | Whether the worker can reach PostgreSQL and Redis (also used by the Compose health check). |
+
+These tools listen on `127.0.0.1` only. Dozzle reads the Docker socket, so keep it local. Stop them with `docker compose --profile tools stop redisinsight dozzle`.
+
 **Try a local repository:** run `./scripts/make-demo-repo.sh` (Windows: `.\scripts\make-demo-repo.ps1`), then connect `/repos/demo-java` as a local path.
 
 ---
@@ -244,6 +260,7 @@ All limits live under `CODETRACE_INGESTION_*` and `CODETRACE_GRAPH_*`.
 | Frontend | Next.js 15 (App Router), React 19, TypeScript, React Flow, Dagre |
 | Testing | JUnit 5, AssertJ, Mockito, Testcontainers, Awaitility |
 | Delivery | Docker, Docker Compose, GitHub Actions |
+| Monitoring (optional) | RedisInsight, Dozzle, Spring Boot Actuator |
 
 ---
 
