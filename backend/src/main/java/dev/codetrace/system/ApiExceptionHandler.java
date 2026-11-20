@@ -7,12 +7,21 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
-/** RFC 7807 errors. Never leaks stack traces or server paths. */
+/** RFC 7807 errors. Spring MVC's own exceptions keep their proper 4xx status; the rest never leak internals. */
 @RestControllerAdvice
 @Profile("api")
-public class ApiExceptionHandler {
+public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
+
+    @ExceptionHandler(ApiException.class)
+    public ProblemDetail api(ApiException e) {
+        ProblemDetail pd = ProblemDetail.forStatus(e.status());
+        pd.setTitle(e.title());
+        pd.setDetail(e.getMessage());
+        return pd;
+    }
 
     @ExceptionHandler(Exception.class)
     public ProblemDetail unexpected(Exception e) {
