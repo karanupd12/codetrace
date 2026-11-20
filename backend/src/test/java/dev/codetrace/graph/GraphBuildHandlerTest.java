@@ -58,7 +58,8 @@ class GraphBuildHandlerTest {
         loader = mock(GraphInputLoader.class);
         writer = mock(GraphWriter.class);
         validator = mock(GraphValidator.class);
-        handler = new GraphBuildHandler(jobs, snapshots, loader, writer, validator, new GraphProperties(1000, 1000, 100, 6));
+        handler = new GraphBuildHandler(jobs, snapshots, loader, writer, validator,
+                new GraphProperties(1000, 1000, 100, 6, 10, 20_000));
 
         when(jobs.findSucceededIndex(repoId, COMMIT)).thenReturn(Optional.of(
                 new IndexedRevision(indexJobId, JavaSymbolExtractor.PARSER_VERSION, JavaSymbolExtractor.EXTRACTION_VERSION)));
@@ -143,7 +144,8 @@ class GraphBuildHandlerTest {
 
     @Test
     void anOversizedGraphFailsTheSnapshotWithTheLimitReason() {
-        handler = new GraphBuildHandler(jobs, snapshots, loader, writer, validator, new GraphProperties(1, 1000, 100, 6));
+        handler = new GraphBuildHandler(jobs, snapshots, loader, writer, validator,
+                new GraphProperties(1, 1000, 100, 6, 10, 20_000));
 
         assertThatThrownBy(() -> handler.handle(job)).isInstanceOfSatisfying(IngestionException.class,
                 e -> assertThat(e.category()).isEqualTo(Category.LIMIT_EXCEEDED));
