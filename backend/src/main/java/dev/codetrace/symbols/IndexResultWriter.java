@@ -22,7 +22,7 @@ public class IndexResultWriter {
 
     @Transactional
     public void write(UUID jobId, UUID repositoryId, String commitHash, IndexResult r) {
-        for (String table : List.of("indexed_file", "code_symbol", "code_import", "parse_diagnostic")) {
+        for (String table : List.of("indexed_file", "code_symbol", "code_import", "code_reference", "parse_diagnostic")) {
             jdbc.update("delete from " + table + " where job_id = ?", jobId);
         }
 
@@ -58,6 +58,17 @@ public class IndexResultWriter {
                 insert into code_import (job_id, path, imported_name, is_static, is_wildcard, line)
                 values (?, ?, ?, ?, ?, ?)""", imports);
 
+        List<Object[]> refs = new ArrayList<>();
+        for (IndexResult.ReferenceRecord rr : r.references()) {
+            JavaSymbolExtractor.Reference x = rr.reference();
+            refs.add(new Object[] {jobId, rr.path(), x.ownerQualifiedName(), x.kind(), x.name(), x.argCount(),
+                    x.receiverKind(), x.receiverType(), x.line()});
+        }
+        jdbc.batchUpdate("""
+                insert into code_reference (job_id, path, owner_qualified_name, kind, name, arg_count, receiver_kind,
+                    receiver_type, line)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?)""", refs);
+
         List<Object[]> diags = new ArrayList<>();
         for (IndexResult.DiagnosticRecord d : r.diagnostics()) {
             diags.add(new Object[] {jobId, d.path(), d.diagnostic().severity(), d.diagnostic().code(),
@@ -70,8 +81,9 @@ public class IndexResultWriter {
         int stored = jdbc.queryForObject("select count(*) from code_symbol where job_id = ?", Integer.class, jobId);
         jdbc.update("""
                 update index_job set status = 'SUCCEEDED', files_parsed = ?, files_skipped = ?, symbols_extracted = ?,
-                    parser_version = ?, finished_at = now(), updated_at = now(), error_category = null,
-                    error_message = null where id = ?""",
-                r.filesParsed(), r.filesSkipped(), stored, r.parserVersion(), jobId);
+                    parser_version = ?, extraction_version = ?, finished_at = now(), updated_at = now(),
+                    error_category = null, error_message = null where id = ?""",
+                r.filesParsed(), r.filesSkipped(), stored, r.parserVersion(), JavaSymbolExtractor.EXTRACTION_VERSION,
+                jobId);
     }
 }

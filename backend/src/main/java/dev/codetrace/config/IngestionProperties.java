@@ -19,6 +19,7 @@ public record IngestionProperties(
         @DefaultValue("524288") long maxFileBytes,
         @DefaultValue("52428800") long maxTotalBytes,
         @DefaultValue("200000") int maxSymbols,
+        @DefaultValue("1000000") int maxReferences,
         @DefaultValue("300") int parseDeadlineSeconds,
         @DefaultValue("3") int maxAttempts,
         @DefaultValue("600") int staleRunningSeconds,

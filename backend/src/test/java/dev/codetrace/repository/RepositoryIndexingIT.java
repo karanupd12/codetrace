@@ -254,6 +254,24 @@ class RepositoryIndexingIT {
     // ---- idempotency / redelivery ---------------------------------------------------------------------------
 
     @Test
+    @Order(6)
+    void referencesAreStoredAsUnresolvedFactsAndTheJobRecordsItsExtractionVersion() {
+        assertThat(jdbc.queryForObject("select extraction_version from index_job where id = ?", Integer.class,
+                indexJobId)).isEqualTo(2);
+        // Order.addLine(String) calls the overload addLine(sku, 1) with no receiver: a fact, not a resolved edge
+        assertThat(jdbc.queryForObject("""
+                select count(*) from code_reference where job_id = ? and kind = 'CALLS' and name = 'addLine'
+                  and arg_count = 2 and receiver_kind = 'NONE'
+                  and owner_qualified_name = 'com.acme.shop.Order#addLine(String)'""", Integer.class, indexJobId))
+                .isEqualTo(1);
+        assertThat(jdbc.queryForObject("""
+                select count(*) from code_reference where job_id = ? and kind = 'IMPLEMENTS' and name = 'Priced'
+                  and owner_qualified_name = 'com.acme.shop.Order'""", Integer.class, indexJobId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from code_reference where job_id = ?", Integer.class,
+                indexJobId)).isPositive();
+    }
+
+    @Test
     @Order(7)
     void requestingTheSameIndexJobAgainReturnsTheSameFinishedJob() throws Exception {
         int before = jdbc.queryForObject("select count(*) from code_symbol where job_id = ?", Integer.class, indexJobId);

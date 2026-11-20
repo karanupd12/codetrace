@@ -47,6 +47,7 @@ public class JavaIndexer {
         List<FileRecord> files = new ArrayList<>();
         List<SymbolRecord> symbols = new ArrayList<>();
         List<ImportRecord> imports = new ArrayList<>();
+        List<IndexResult.ReferenceRecord> references = new ArrayList<>();
         List<DiagnosticRecord> diagnostics = new ArrayList<>();
         int parsed = 0;
         int skipped = 0;
@@ -109,18 +110,23 @@ public class JavaIndexer {
                     files.add(new FileRecord(path, x.packageName(), x.status().name(), "", size));
                     for (var s : x.symbols()) symbols.add(new SymbolRecord(path, s));
                     for (var i : x.imports()) imports.add(new ImportRecord(path, i));
+                    for (var r : x.references()) references.add(new IndexResult.ReferenceRecord(path, r));
                     for (var d : x.diagnostics()) diagnostics.add(new DiagnosticRecord(path, d));
                     if (x.status() != JavaSymbolExtractor.FileStatus.FAILED) parsed++;
                     if (symbols.size() > props.maxSymbols()) {
                         throw new IngestionException(Category.LIMIT_EXCEEDED,
                                 "More than " + props.maxSymbols() + " symbols in revision.");
                     }
+                    if (references.size() > props.maxReferences()) {
+                        throw new IngestionException(Category.LIMIT_EXCEEDED,
+                                "More than " + props.maxReferences() + " references in revision.");
+                    }
                 }
             }
         } catch (IOException e) {
             throw new IngestionException(Category.GIT_ERROR, "Could not read revision contents.", e);
         }
-        return new IndexResult(JavaSymbolExtractor.PARSER_VERSION, parsed, skipped, files, symbols, imports,
+        return new IndexResult(JavaSymbolExtractor.PARSER_VERSION, parsed, skipped, files, symbols, imports, references,
                 diagnostics);
     }
 

@@ -103,14 +103,14 @@ public final class GitFixtures {
 
     public static IngestionProperties props(Path workspace, List<String> localRoots) {
         return new IngestionProperties(workspace.toString(), localRoots, List.of("github.com", "gitlab.com"), 50, 30,
-                200_000_000L, 50, 5000, 524_288L, 50_000_000L, 200_000, 60, 3, 600, 2,
+                200_000_000L, 50, 5000, 524_288L, 50_000_000L, 200_000, 1_000_000, 60, 3, 600, 2,
                 List.of("target", "build", "out", "node_modules", ".git", ".gradle", ".idea", "dist"));
     }
 
     /** Same as {@link #props} but with tight limits, for limit tests. */
     public static IngestionProperties limited(int maxJavaFiles, long maxFileBytes, long maxTotalBytes, int maxSymbols) {
         return new IngestionProperties("unused", List.of(), List.of("github.com"), 50, 30, 200_000_000L, 50,
-                maxJavaFiles, maxFileBytes, maxTotalBytes, maxSymbols, 60, 3, 600, 2,
+                maxJavaFiles, maxFileBytes, maxTotalBytes, maxSymbols, 1_000_000, 60, 3, 600, 2,
                 List.of("target", "build", "out", "node_modules", ".git"));
     }
 }
