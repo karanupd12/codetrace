@@ -378,6 +378,26 @@ class RepositoryIndexingIT {
     }
 
     @Test
+    @Order(14)
+    void aFinishedIndexFromAnOlderExtractorIsReExtractedOnRequest() throws Exception {
+        jdbc.update("update index_job set extraction_version = null where id = ?", indexJobId); // as left by earlier releases
+        int refsBefore = jdbc.queryForObject("select count(*) from code_reference where job_id = ?", Integer.class, indexJobId);
+
+        ResponseEntity<String> res = post("/api/v1/repositories/" + repositoryId + "/index-jobs", "{}");
+
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(json.readTree(res.getBody()).get("id").asText()).isEqualTo(indexJobId.toString()); // same logical job
+        awaitJob(indexJobId, "SUCCEEDED");
+        await().atMost(Duration.ofSeconds(30)).until(() -> jdbc.queryForObject(
+                "select extraction_version from index_job where id = ?", Integer.class, indexJobId) != null);
+        assertThat(jdbc.queryForObject("select extraction_version from index_job where id = ?", Integer.class, indexJobId))
+                .isEqualTo(2);
+        // replaced, not duplicated
+        assertThat(jdbc.queryForObject("select count(*) from code_reference where job_id = ?", Integer.class, indexJobId))
+                .isEqualTo(refsBefore);
+    }
+
+    @Test
     @Order(13)
     void symbolQueriesRejectSyncJobsAndBadKinds() throws Exception {
         UUID sync = UUID.fromString(jdbc.queryForObject(

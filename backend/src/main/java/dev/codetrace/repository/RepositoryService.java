@@ -4,6 +4,7 @@ import dev.codetrace.jobs.JobDao;
 import dev.codetrace.jobs.JobDao.Created;
 import dev.codetrace.jobs.JobDao.Job;
 import dev.codetrace.jobs.JobPublisher;
+import dev.codetrace.parser.JavaSymbolExtractor;
 import dev.codetrace.repository.RepositoryDao.Repo;
 import dev.codetrace.security.SourceValidator;
 import dev.codetrace.system.ApiException;
@@ -101,9 +102,19 @@ public class RepositoryService {
             publisher.publish(job.id());
         } else if (("FAILED".equals(job.status()) || "DEAD_LETTERED".equals(job.status()))
                 && jobs.resetForRerun(job.id())) {
-            publisher.publish(job.id()); // previously failed: retry it. SUCCEEDED/QUEUED/RUNNING are returned as-is.
+            publisher.publish(job.id()); // previously failed: retry it
+        } else if ("SUCCEEDED".equals(job.status()) && indexedByOlderExtractor(repo.id(), commit)
+                && jobs.resetForRerun(job.id())) {
+            publisher.publish(job.id()); // finished, but without facts newer stages need: extract again
         }
+        // QUEUED/RUNNING and up-to-date SUCCEEDED jobs are returned as they are.
         return jobs.find(job.id()).orElseThrow();
+    }
+
+    private boolean indexedByOlderExtractor(UUID repositoryId, String commit) {
+        return jobs.findSucceededIndex(repositoryId, commit)
+                .map(i -> i.extractionVersion() == null || i.extractionVersion() < JavaSymbolExtractor.EXTRACTION_VERSION)
+                .orElse(false);
     }
 
     public Job job(UUID jobId) {
