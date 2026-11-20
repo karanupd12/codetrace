@@ -35,7 +35,7 @@ export type Repository = {
 export type Job = {
   id: string;
   repositoryId: string;
-  operation: "SYNC" | "INDEX";
+  operation: "SYNC" | "INDEX" | "GRAPH_BUILD";
   status: JobStatus;
   commitHash: string | null;
   attempts: number;
@@ -79,6 +79,76 @@ export type Diagnostic = {
 };
 
 export const isActive = (s: JobStatus) => s === "QUEUED" || s === "RUNNING";
+
+// ---- dependency graph ----
+
+export type SnapshotStatus = "REQUESTED" | "BUILDING" | "VALIDATING" | "PUBLISHED" | "FAILED";
+export type Resolution = "RESOLVED" | "AMBIGUOUS" | "UNRESOLVED";
+export type EdgeType = "CONTAINS" | "CALLS" | "REFERENCES" | "EXTENDS" | "IMPLEMENTS" | "IMPORTS";
+export type NodeType = "FILE" | "PACKAGE" | "TYPE" | "METHOD" | "FIELD";
+
+export type Snapshot = {
+  id: string;
+  repositoryId: string;
+  commitHash: string;
+  parserVersion: string;
+  builderVersion: string;
+  status: SnapshotStatus;
+  nodeCount: number | null;
+  edgeCount: number | null;
+  resolvedEdgeCount: number | null;
+  ambiguousEdgeCount: number | null;
+  unresolvedEdgeCount: number | null;
+  failureReason: string | null;
+  createdAt: string;
+  publishedAt: string | null;
+};
+
+export const snapshotInProgress = (s: SnapshotStatus) =>
+  s === "REQUESTED" || s === "BUILDING" || s === "VALIDATING";
+
+export type GraphNode = {
+  id: string;
+  nodeType: NodeType;
+  qualifiedName: string;
+  signature: string;
+  simpleName: string;
+  subtype: string;
+  path: string;
+  startLine: number;
+  endLine: number;
+  modifiers: string;
+  extractionMethod: string;
+  parserVersion: string;
+};
+
+/** An edge with its provenance. `dstId` is null for UNRESOLVED edges; `dstName` says what was being looked for. */
+export type GraphEdge = {
+  id: number;
+  srcId: string;
+  srcName: string;
+  dstId: string | null;
+  dstName: string;
+  edgeType: EdgeType;
+  resolution: Resolution;
+  confidence: number;
+  evidenceKind: string;
+  reason: string;
+  alternativeGroup: string;
+  evidencePath: string;
+  evidenceLine: number;
+  occurrences: number;
+  extractionMethod: string;
+  resolverVersion: string;
+};
+
+export type Subgraph = {
+  center: string;
+  depth: number;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  truncated: boolean;
+};
 
 // ---- transport ----
 
@@ -135,6 +205,43 @@ export const resync = (id: string) => post<Job>(`/api/v1/repositories/${id}/sync
 
 export const requestIndex = (id: string, commitHash?: string) =>
   post<Job>(`/api/v1/repositories/${id}/index-jobs`, commitHash ? { commitHash } : {});
+
+// ---- graph snapshots ----
+
+export const requestGraphBuild = (repoId: string, commitHash?: string) =>
+  post<{ snapshot: Snapshot; job: Job }>(
+    `/api/v1/repositories/${repoId}/graph-snapshots`,
+    commitHash ? { commitHash } : {},
+  );
+
+export const listSnapshots = (repoId: string, signal?: AbortSignal) =>
+  request<Snapshot[]>(`/api/v1/repositories/${repoId}/snapshots`, undefined, signal);
+
+export const searchGraphNodes = (
+  snapshotId: string,
+  p: { type?: string; q?: string; limit: number; offset: number },
+  signal?: AbortSignal,
+) => {
+  const qs = new URLSearchParams({ limit: String(p.limit), offset: String(p.offset) });
+  if (p.type) qs.set("type", p.type);
+  if (p.q) qs.set("q", p.q);
+  return request<Page<GraphNode>>(`/api/v1/snapshots/${snapshotId}/nodes?${qs}`, undefined, signal);
+};
+
+export const getSubgraph = (
+  snapshotId: string,
+  p: { center: string; depth: number; types: EdgeType[]; states: Resolution[]; limit: number },
+  signal?: AbortSignal,
+) => {
+  const qs = new URLSearchParams({
+    center: p.center,
+    depth: String(p.depth),
+    types: p.types.join(","),
+    states: p.states.join(","),
+    limit: String(p.limit),
+  });
+  return request<Subgraph>(`/api/v1/snapshots/${snapshotId}/graph?${qs}`, undefined, signal);
+};
 
 // ---- symbols ----
 

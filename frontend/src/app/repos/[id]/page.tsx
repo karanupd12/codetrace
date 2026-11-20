@@ -8,12 +8,17 @@ import {
   isActive,
   listJobs,
   listRevisions,
+  listSnapshots,
+  requestGraphBuild,
   requestIndex,
   resync,
+  snapshotInProgress,
   type Job,
+  type Snapshot,
 } from "@/lib/api";
 import { usePoll } from "@/lib/usePoll";
 import styles from "../../page.module.css";
+import GraphExplorer from "./GraphExplorer";
 import SymbolBrowser from "./SymbolBrowser";
 
 const short = (h: string | null) => (h ? h.slice(0, 7) : "—");
@@ -30,15 +35,23 @@ export default function RepoPage() {
   const { id } = useParams<{ id: string }>();
   const [actionError, setActionError] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<string | null>(null);
+  const [openSnapshot, setOpenSnapshot] = useState<string | null>(null);
 
   const { data, error, reload } = usePoll(
     async (signal) => {
-      const [repo, jobs] = await Promise.all([getRepository(id, signal), listJobs(id, signal)]);
+      const [repo, jobs, snapshots] = await Promise.all([
+        getRepository(id, signal),
+        listJobs(id, signal),
+        listSnapshots(id, signal),
+      ]);
       const revisions = repo.syncStatus === "SYNCED" ? await listRevisions(id, signal) : [];
-      return { repo, jobs, revisions };
+      return { repo, jobs, snapshots, revisions };
     },
     2000,
-    (d) => d.repo.syncStatus === "PENDING" || d.jobs.some((j) => isActive(j.status)),
+    (d) =>
+      d.repo.syncStatus === "PENDING" ||
+      d.jobs.some((j) => isActive(j.status)) ||
+      d.snapshots.some((s) => snapshotInProgress(s.status)),
   );
 
   async function act(fn: () => Promise<unknown>) {
@@ -67,11 +80,29 @@ export default function RepoPage() {
     );
   }
 
-  const { repo, jobs, revisions } = data;
+  const { repo, jobs, snapshots, revisions } = data;
   const indexJobs = jobs.filter((j) => j.operation === "INDEX");
   const latestDone = indexJobs.find((j) => j.status === "SUCCEEDED");
   const activeJobId = selectedJob ?? latestDone?.id ?? null;
   const indexedCommits = new Map(indexJobs.map((j) => [j.commitHash, j]));
+  const snapshotByCommit = new Map<string, Snapshot>();
+  for (const s of [...snapshots].reverse()) snapshotByCommit.set(s.commitHash, s); // newest wins
+  const published = snapshots.filter((s) => s.status === "PUBLISHED");
+  const explored = published.find((s) => s.id === openSnapshot) ?? null;
+
+  function graphAction(commit: string) {
+    const index = indexedCommits.get(commit);
+    if (!index || index.status !== "SUCCEEDED") return null;
+    const snap = snapshotByCommit.get(commit);
+    if (!snap) return <button onClick={() => act(() => requestGraphBuild(id, commit))}>Build graph</button>;
+    if (snap.status === "PUBLISHED") return <button onClick={() => setOpenSnapshot(snap.id)}>Open graph</button>;
+    if (snapshotInProgress(snap.status)) return <span className={styles.muted}>graph {snap.status.toLowerCase()}…</span>;
+    return (
+      <button onClick={() => act(() => requestGraphBuild(id, commit))} title={snap.failureReason ?? ""}>
+        Retry graph
+      </button>
+    );
+  }
 
   return (
     <main className={styles.main}>
@@ -101,7 +132,7 @@ export default function RepoPage() {
         {revisions.length > 0 && (
           <table className={styles.table}>
             <thead>
-              <tr><th>Commit</th><th>Summary</th><th /></tr>
+              <tr><th>Commit</th><th>Summary</th><th>Index</th><th>Graph</th></tr>
             </thead>
             <tbody>
               {revisions.map((r) => {
@@ -121,6 +152,7 @@ export default function RepoPage() {
                         </button>
                       )}
                     </td>
+                    <td>{graphAction(r.commitHash)}</td>
                   </tr>
                 );
               })}
@@ -128,6 +160,30 @@ export default function RepoPage() {
           </table>
         )}
       </section>
+
+      {snapshots.length > 0 && (
+        <section className={styles.card}>
+          <h2>Graph snapshots</h2>
+          <ul className={styles.list}>
+            {snapshots.map((s) => (
+              <li key={s.id} className={styles.row}>
+                <span className={`${styles.badge} ${styles["badge" + (s.status === "PUBLISHED" ? "SUCCEEDED" : s.status === "FAILED" ? "FAILED" : "RUNNING")]}`}>
+                  {s.status}
+                </span>
+                <span className={styles.label}>{short(s.commitHash)}</span>
+                <span className={styles.detail}>
+                  {s.status === "PUBLISHED"
+                    ? `${s.nodeCount} nodes · ${s.edgeCount} edges (${s.resolvedEdgeCount} resolved, ${s.ambiguousEdgeCount} ambiguous, ${s.unresolvedEdgeCount} unresolved)`
+                    : s.failureReason ?? s.builderVersion}
+                </span>
+                {s.status === "PUBLISHED" && <button onClick={() => setOpenSnapshot(s.id)}>Open</button>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {explored && <GraphExplorer key={explored.id} snapshot={explored} />}
 
       <section className={styles.card}>
         <h2>Jobs</h2>
