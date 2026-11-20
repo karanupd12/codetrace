@@ -4,7 +4,7 @@ package dev.codetrace.ingestion;
 public class IngestionException extends RuntimeException {
     public enum Category {
         INVALID_SOURCE(false), LIMIT_EXCEEDED(false), TIMEOUT(false), REPOSITORY_UNAVAILABLE(false),
-        REVISION_NOT_FOUND(false), NO_COMMITS(false), GIT_ERROR(true), INTERNAL(true);
+        REVISION_NOT_FOUND(false), NO_COMMITS(false), GRAPH_INVALID(false), GIT_ERROR(true), INTERNAL(true);
 
         private final boolean retryable;
 

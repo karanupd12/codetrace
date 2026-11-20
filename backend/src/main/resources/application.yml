@@ -5,6 +5,10 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/codetrace}
     username: ${SPRING_DATASOURCE_USERNAME:codetrace}
     password: ${SPRING_DATASOURCE_PASSWORD:change-me-local-only}
+    hikari:
+      data-source-properties:
+        # Send JDBC batches as multi-row INSERTs: large graph writes are dominated by round trips otherwise.
+        reWriteBatchedInserts: true
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}

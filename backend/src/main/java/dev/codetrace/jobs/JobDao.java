@@ -32,6 +32,25 @@ public class JobDao {
         this.jdbc = jdbc;
     }
 
+    /** The finished INDEX job whose stored facts a graph build for this commit reads. */
+    public record IndexedRevision(UUID jobId, String parserVersion, Integer extractionVersion) {
+    }
+
+    public Optional<IndexedRevision> findSucceededIndex(UUID repositoryId, String commitHash) {
+        return jdbc.sql("""
+                select id, parser_version, extraction_version from index_job
+                where repository_id = :r and operation = 'INDEX' and commit_hash = :c and status = 'SUCCEEDED'
+                order by finished_at desc limit 1""")
+                .param("r", repositoryId).param("c", commitHash)
+                .query((rs, i) -> new IndexedRevision(rs.getObject("id", UUID.class), rs.getString("parser_version"),
+                        rs.getObject("extraction_version", Integer.class)))
+                .optional();
+    }
+
+    public static String graphKey(UUID repositoryId, String commitHash, String parserVersion, String builderVersion) {
+        return "GRAPH:" + repositoryId + ":" + commitHash + ":" + parserVersion + ":" + builderVersion;
+    }
+
     public static String syncKey(UUID repositoryId) {
         return "SYNC:" + repositoryId;
     }
