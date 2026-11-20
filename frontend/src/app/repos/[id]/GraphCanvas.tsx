@@ -16,6 +16,10 @@ export type Selection =
 const NODE_W = 240;
 const NODE_H = 56;
 const EXTERNAL = "ext:";
+const MAX_PER_COLUMN = 10;
+const ROW_GAP = 22;
+const COLUMN_GAP = 40;
+const RANK_GAP = 140;
 
 const NODE_COLOR: Record<NodeType, string> = {
   TYPE: "#3b82f6",
@@ -108,9 +112,28 @@ export function buildFlow(sub: Subgraph): { nodes: Node[]; edges: Edge[] } {
   nodes.forEach((n) => g.setNode(n.id, { width: NODE_W, height: NODE_H }));
   edges.forEach((e) => g.setEdge(e.source, e.target));
   dagre.layout(g);
+
+  // Dagre puts every neighbour of a hub in one tall column. Wrap crowded ranks into several columns so the
+  // whole graph fits on screen at a readable zoom.
+  const ranks = new Map<number, Node[]>();
   for (const n of nodes) {
-    const p = g.node(n.id);
-    n.position = { x: p.x - NODE_W / 2, y: p.y - NODE_H / 2 };
+    const x = Math.round(g.node(n.id).x);
+    ranks.set(x, [...(ranks.get(x) ?? []), n]);
+  }
+  let cursorX = 0;
+  for (const x of [...ranks.keys()].sort((a, b) => a - b)) {
+    const group = ranks.get(x)!.sort((a, b) => g.node(a.id).y - g.node(b.id).y);
+    const cols = Math.ceil(group.length / MAX_PER_COLUMN);
+    const rows = Math.ceil(group.length / cols);
+    group.forEach((n, i) => {
+      const col = Math.floor(i / rows);
+      const row = i % rows;
+      n.position = {
+        x: cursorX + col * (NODE_W + COLUMN_GAP),
+        y: row * (NODE_H + ROW_GAP) - (rows * (NODE_H + ROW_GAP)) / 2,
+      };
+    });
+    cursorX += cols * (NODE_W + COLUMN_GAP) + RANK_GAP;
   }
   return { nodes, edges };
 }

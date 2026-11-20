@@ -105,7 +105,7 @@ export default function RepoPage() {
   }
 
   return (
-    <main className={styles.main}>
+    <main className={`${styles.main} ${styles.wide}`}>
       <Link href="/">← Repositories</Link>
       <header className={styles.header}>
         <h1>{repo.displayName}</h1>

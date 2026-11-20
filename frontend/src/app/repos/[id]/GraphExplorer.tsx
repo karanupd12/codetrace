@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  getNodeDetail,
   getSubgraph,
   searchGraphNodes,
   type EdgeType,
@@ -16,6 +17,10 @@ import page from "../../page.module.css";
 
 const EDGE_TYPES: EdgeType[] = ["CALLS", "REFERENCES", "EXTENDS", "IMPLEMENTS", "IMPORTS", "CONTAINS"];
 const DEFAULT_TYPES: EdgeType[] = ["CALLS", "REFERENCES", "EXTENDS", "IMPLEMENTS"];
+const FIRST_LIMIT = 40; // small by default so hub nodes stay readable
+const MORE_STEP = 60;
+const MAX_LIMIT = 500;
+const START_CANDIDATES = 20;
 
 function pct(part: number | null, total: number | null) {
   return part == null || !total ? "–" : `${Math.round((part / total) * 100)}%`;
@@ -75,6 +80,7 @@ export default function GraphExplorer({ snapshot }: { snapshot: Snapshot }) {
   const [total, setTotal] = useState(0);
   const [center, setCenter] = useState<string | null>(null);
   const [depth, setDepth] = useState(1);
+  const [limit, setLimit] = useState(FIRST_LIMIT);
   const [edgeTypes, setEdgeTypes] = useState<EdgeType[]>(DEFAULT_TYPES);
   const [showAmbiguous, setShowAmbiguous] = useState(true);
   const [showUnresolved, setShowUnresolved] = useState(false);
@@ -91,7 +97,7 @@ export default function GraphExplorer({ snapshot }: { snapshot: Snapshot }) {
           setResults(p.items);
           setTotal(p.total);
           setError(null);
-          setCenter((c) => c ?? p.items[0]?.id ?? null);
+          setCenter((c) => c ?? p.items[0]?.id ?? null); // provisional; replaced by the best-connected hit below
         })
         .catch((e: unknown) => {
           if (!ctrl.signal.aborted) setError(e instanceof Error ? e.message : "Search failed");
@@ -103,12 +109,38 @@ export default function GraphExplorer({ snapshot }: { snapshot: Snapshot }) {
     };
   }, [snapshot.id, type, q]);
 
+  // start on the most-connected of the first few types, so the first graph is worth looking at
+  useEffect(() => {
+    const ctrl = new AbortController();
+    searchGraphNodes(snapshot.id, { type: "TYPE", limit: START_CANDIDATES, offset: 0 }, ctrl.signal)
+      .then((p) =>
+        Promise.all(
+          p.items.map((n) =>
+            getNodeDetail(snapshot.id, n.id, ctrl.signal).then((d) => ({
+              id: n.id,
+              score: [...d.outgoing, ...d.incoming]
+                .filter((x) => x.edgeType !== "CONTAINS" && x.edgeType !== "IMPORTS")
+                .reduce((sum, x) => sum + x.count, 0),
+            })),
+          ),
+        ),
+      )
+      .then((scored) => {
+        const best = scored.sort((a, b) => b.score - a.score)[0];
+        if (best && best.score > 0) setCenter(best.id);
+      })
+      .catch(() => {
+        /* the provisional centre stays */
+      });
+    return () => ctrl.abort();
+  }, [snapshot.id]);
+
   // neighbourhood of the centre
   useEffect(() => {
     if (!center) return;
     const ctrl = new AbortController();
     const states: Resolution[] = ["RESOLVED", ...(showAmbiguous ? ["AMBIGUOUS" as const] : []), ...(showUnresolved ? ["UNRESOLVED" as const] : [])];
-    getSubgraph(snapshot.id, { center, depth, types: edgeTypes, states, limit: 200 }, ctrl.signal)
+    getSubgraph(snapshot.id, { center, depth, types: edgeTypes, states, limit }, ctrl.signal)
       .then((s) => {
         setSub(s);
         setError(null);
@@ -117,12 +149,15 @@ export default function GraphExplorer({ snapshot }: { snapshot: Snapshot }) {
         if (!ctrl.signal.aborted) setError(e instanceof Error ? e.message : "Could not load graph");
       });
     return () => ctrl.abort();
-  }, [snapshot.id, center, depth, edgeTypes, showAmbiguous, showUnresolved]);
+  }, [snapshot.id, center, depth, edgeTypes, showAmbiguous, showUnresolved, limit]);
 
-  const toggleType = (t: EdgeType) =>
+  const toggleType = (t: EdgeType) => {
+    setLimit(FIRST_LIMIT);
     setEdgeTypes((cur) => (cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]));
+  };
 
   const focus = (id: string) => {
+    setLimit(FIRST_LIMIT);
     setCenter(id);
     setSelection(null);
   };
@@ -189,7 +224,16 @@ export default function GraphExplorer({ snapshot }: { snapshot: Snapshot }) {
           {sub ? (
             <>
               {sub.truncated && (
-                <p className={styles.warn}>Showing the first {sub.edges.length} edges; narrow the filters or reduce the depth to see the rest.</p>
+                <p className={styles.warn}>
+                  This node has more connections. Showing {sub.edges.length} edges.{" "}
+                  {limit < MAX_LIMIT ? (
+                    <button onClick={() => setLimit((l) => Math.min(MAX_LIMIT, l + MORE_STEP))}>
+                      Show more
+                    </button>
+                  ) : (
+                    "That is the maximum; narrow the filters or reduce the depth to see others."
+                  )}
+                </p>
               )}
               {sub.edges.length === 0 && <p className={styles.counts}>No edges match these filters around this node.</p>}
               <GraphCanvas

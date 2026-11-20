@@ -228,6 +228,12 @@ export const searchGraphNodes = (
   return request<Page<GraphNode>>(`/api/v1/snapshots/${snapshotId}/nodes?${qs}`, undefined, signal);
 };
 
+export type EdgeDegree = { edgeType: EdgeType; resolution: Resolution; count: number };
+export type NodeDetail = { node: GraphNode; outgoing: EdgeDegree[]; incoming: EdgeDegree[] };
+
+export const getNodeDetail = (snapshotId: string, nodeId: string, signal?: AbortSignal) =>
+  request<NodeDetail>(`/api/v1/snapshots/${snapshotId}/nodes/${nodeId}`, undefined, signal);
+
 export const getSubgraph = (
   snapshotId: string,
   p: { center: string; depth: number; types: EdgeType[]; states: Resolution[]; limit: number },

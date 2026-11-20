@@ -184,3 +184,8 @@
 .dotDown {
   background: #d64545;
 }
+
+/* repository page: room for the graph canvas */
+.wide {
+  max-width: 1280px;
+}
