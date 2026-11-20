@@ -9,8 +9,8 @@ FROM eclipse-temurin:21.0.8_9-jre
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd --system --uid 10001 --no-create-home codetrace \
-    && mkdir -p /data/workspaces && chown -R 10001 /data
+    && useradd --system --uid 10001 --home-dir /data/home --no-create-home codetrace \
+    && mkdir -p /data/workspaces /data/home && chown -R 10001 /data
 ENV CODETRACE_INGESTION_WORKSPACE_DIR=/data/workspaces
 WORKDIR /app
 COPY --from=build /build/target/codetrace-backend.jar app.jar
