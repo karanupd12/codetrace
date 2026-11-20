@@ -1,0 +1,21 @@
+# Build outputs
+backend/target/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+*.log
+
+# Local config / secrets
+.env
+.env.local
+frontend/.env*.local
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Runtime workspace for cloned repositories (M2+)
+data/

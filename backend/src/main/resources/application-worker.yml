@@ -1,0 +1,4 @@
+codetrace:
+  role: worker
+server:
+  port: 8081

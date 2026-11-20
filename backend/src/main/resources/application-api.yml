@@ -1,0 +1,4 @@
+codetrace:
+  role: api
+server:
+  port: 8080
