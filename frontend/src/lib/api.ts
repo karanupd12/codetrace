@@ -1,7 +1,7 @@
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
-// ---- types (mirror the backend's JSON; see DOCUMENTATION.md "API reference") ----
+// ---- types (mirror the backend's JSON responses) ----
 
 export type SystemInfo = {
   name: string;

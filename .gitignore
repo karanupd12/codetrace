@@ -17,5 +17,11 @@ frontend/.env*.local
 .DS_Store
 Thumbs.db
 
-# Runtime workspace for cloned repositories (M2+)
+# Runtime workspace for cloned repositories
 data/
+
+# Local-only project notes and AI-assistant instructions: kept on disk, never published
+CLAUDE.md
+DOCUMENTATION.md
+docs/
+.claude/
