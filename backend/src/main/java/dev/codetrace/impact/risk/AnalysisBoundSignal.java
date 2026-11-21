@@ -1,7 +1,6 @@
 package dev.codetrace.impact.risk;
 
-import dev.codetrace.impact.ImpactAnalysis;
-import dev.codetrace.impact.RiskSignal;
+import dev.codetrace.impact.model.ImpactAnalysis;
 import org.springframework.stereotype.Component;
 
 /** A traversal that hit its limits under-reports the impact. */

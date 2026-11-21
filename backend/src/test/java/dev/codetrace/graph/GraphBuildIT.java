@@ -1,13 +1,15 @@
 package dev.codetrace.graph;
 
+import dev.codetrace.graph.engine.GraphBuilder;
+import dev.codetrace.graph.repository.GraphIntegrityRepository;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.codetrace.jobs.JobPublisher;
-import dev.codetrace.jobs.StreamBootstrap;
+import dev.codetrace.jobs.queue.JobPublisher;
+import dev.codetrace.jobs.queue.StreamBootstrap;
 import dev.codetrace.support.GitFixtures;
 import dev.codetrace.support.GitFixtures.Entry;
 import java.nio.file.Files;
@@ -101,7 +103,7 @@ class GraphBuildIT {
     @Autowired JdbcTemplate jdbc;
     @Autowired StringRedisTemplate redis;
     @Autowired JobPublisher publisher;
-    @Autowired GraphValidator validator;
+    @Autowired GraphIntegrityRepository validator;
     @Autowired ObjectMapper json;
 
     static UUID demoRepoId;

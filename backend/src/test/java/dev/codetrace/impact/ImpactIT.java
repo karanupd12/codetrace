@@ -1,17 +1,20 @@
 package dev.codetrace.impact;
 
+import dev.codetrace.impact.model.ImpactAnalysis;
+import dev.codetrace.impact.risk.RiskAssessor;
+import dev.codetrace.impact.service.ImpactAnalyzer;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.codetrace.change.ChangeDetector;
-import dev.codetrace.change.ChangeSet;
-import dev.codetrace.change.ChangedSymbolMapper.Kind;
-import dev.codetrace.impact.ImpactAnalysis.AffectedSymbol;
-import dev.codetrace.impact.ImpactAnalysis.ChangedEntry;
-import dev.codetrace.impact.RiskAssessor.Level;
-import dev.codetrace.impact.RiskAssessor.RiskAssessment;
+import dev.codetrace.impact.change.ChangeDetector;
+import dev.codetrace.impact.change.ChangeSet;
+import dev.codetrace.impact.change.ChangedSymbolMapper.Kind;
+import dev.codetrace.impact.model.ImpactAnalysis.AffectedSymbol;
+import dev.codetrace.impact.model.ImpactAnalysis.ChangedEntry;
+import dev.codetrace.impact.risk.RiskAssessor.Level;
+import dev.codetrace.impact.risk.RiskAssessor.RiskAssessment;
 import dev.codetrace.support.GitFixtures;
 import dev.codetrace.support.GitFixtures.Entry;
 import java.nio.file.Files;

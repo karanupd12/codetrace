@@ -1,7 +1,6 @@
 package dev.codetrace.impact.risk;
 
-import dev.codetrace.impact.ImpactAnalysis;
-import dev.codetrace.impact.RiskSignal;
+import dev.codetrace.impact.model.ImpactAnalysis;
 import java.util.Set;
 import java.util.TreeSet;
 import org.springframework.stereotype.Component;

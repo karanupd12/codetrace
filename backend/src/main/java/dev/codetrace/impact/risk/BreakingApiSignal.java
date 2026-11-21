@@ -1,9 +1,8 @@
 package dev.codetrace.impact.risk;
 
-import dev.codetrace.change.ChangedSymbolMapper.Kind;
-import dev.codetrace.impact.ImpactAnalysis;
-import dev.codetrace.impact.ImpactAnalysis.ChangedEntry;
-import dev.codetrace.impact.RiskSignal;
+import dev.codetrace.impact.change.ChangedSymbolMapper.Kind;
+import dev.codetrace.impact.model.ImpactAnalysis;
+import dev.codetrace.impact.model.ImpactAnalysis.ChangedEntry;
 import java.util.Arrays;
 import java.util.List;
 import org.springframework.stereotype.Component;

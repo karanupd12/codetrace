@@ -1,7 +1,6 @@
 package dev.codetrace.impact.risk;
 
-import dev.codetrace.impact.ImpactAnalysis;
-import dev.codetrace.impact.RiskSignal;
+import dev.codetrace.impact.model.ImpactAnalysis;
 import org.springframework.stereotype.Component;
 
 /** Many changed production symbols are harder to review and more likely to hide a problem. */

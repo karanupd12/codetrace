@@ -1,18 +1,21 @@
 package dev.codetrace.graph;
 
+import dev.codetrace.graph.engine.GraphBuilder;
+import dev.codetrace.graph.repository.GraphSnapshotRepository;
+import dev.codetrace.graph.repository.GraphWriteRepository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.codetrace.graph.GraphModel.Edge;
-import dev.codetrace.graph.GraphModel.EdgeType;
-import dev.codetrace.graph.GraphModel.Node;
-import dev.codetrace.graph.GraphModel.NodeType;
-import dev.codetrace.graph.GraphModel.Resolution;
-import dev.codetrace.graph.GraphModel.Result;
-import dev.codetrace.graph.GraphSnapshotDao.Snapshot;
-import dev.codetrace.repository.RepositoryDao;
-import dev.codetrace.repository.SourceType;
+import dev.codetrace.graph.model.GraphModel.Edge;
+import dev.codetrace.graph.model.GraphModel.EdgeType;
+import dev.codetrace.graph.model.GraphModel.Node;
+import dev.codetrace.graph.model.GraphModel.NodeType;
+import dev.codetrace.graph.model.GraphModel.Resolution;
+import dev.codetrace.graph.model.GraphModel.Result;
+import dev.codetrace.graph.repository.GraphSnapshotRepository.Snapshot;
+import dev.codetrace.source.repository.SourceRepositoryRepository;
+import dev.codetrace.source.model.SourceType;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -72,9 +75,9 @@ class GraphQueryIT {
     }
 
     @Autowired TestRestTemplate rest;
-    @Autowired GraphSnapshotDao snapshots;
-    @Autowired GraphWriter writer;
-    @Autowired RepositoryDao repos;
+    @Autowired GraphSnapshotRepository snapshots;
+    @Autowired GraphWriteRepository writer;
+    @Autowired SourceRepositoryRepository repos;
     @Autowired ObjectMapper json;
 
     static UUID snap;

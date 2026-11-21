@@ -1,7 +1,6 @@
 package dev.codetrace.impact.risk;
 
-import dev.codetrace.impact.ImpactAnalysis;
-import dev.codetrace.impact.RiskSignal;
+import dev.codetrace.impact.model.ImpactAnalysis;
 import org.springframework.stereotype.Component;
 
 /** The analysis cannot prove every dependency; unproven ones mean the real impact may be larger than reported. */
