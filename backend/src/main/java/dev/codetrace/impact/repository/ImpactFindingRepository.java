@@ -3,7 +3,7 @@ package dev.codetrace.impact.repository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import dev.codetrace.common.util.JsonCodec;
 import dev.codetrace.impact.model.ImpactAnalysis.Hop;
-import dev.codetrace.impact.service.ImpactReportService.Finding;
+import dev.codetrace.impact.model.Finding;
 import dev.codetrace.common.web.Page;
 import java.sql.ResultSet;
 import java.sql.SQLException;

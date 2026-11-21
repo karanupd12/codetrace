@@ -1,16 +1,7 @@
 package dev.codetrace.report.controller;
 
-import dev.codetrace.common.util.Commits;
-import dev.codetrace.report.markdown.MarkdownReportRenderer;
-import dev.codetrace.report.markdown.MarkdownText;
-import dev.codetrace.report.markdown.ReportData;
-import dev.codetrace.impact.repository.ImpactFindingRepository;
-import dev.codetrace.impact.repository.ImpactReportRepository.Report;
-import dev.codetrace.impact.service.ImpactReportService;
-import dev.codetrace.impact.service.ImpactReportService.Finding;
-import dev.codetrace.source.service.SourceRepositoryService;
+import dev.codetrace.report.service.ReportDocumentService;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpHeaders;
@@ -28,34 +19,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReportController {
     private static final MediaType MARKDOWN = new MediaType("text", "markdown", StandardCharsets.UTF_8);
 
-    private final ImpactReportService impact;
-    private final ImpactFindingRepository findings;
-    private final SourceRepositoryService repositories;
-    private final MarkdownReportRenderer renderer;
+    private final ReportDocumentService documents;
 
-    public ReportController(ImpactReportService impact, ImpactFindingRepository findings, SourceRepositoryService repositories,
-                            MarkdownReportRenderer renderer) {
-        this.impact = impact;
-        this.findings = findings;
-        this.repositories = repositories;
-        this.renderer = renderer;
+    public ReportController(ReportDocumentService documents) {
+        this.documents = documents;
     }
 
     @GetMapping("/impact-reports/{reportId}/report.md")
     public ResponseEntity<String> markdown(@PathVariable UUID reportId) {
-        Report report = impact.completed(reportId); // 404 unknown, 409 until completed
-        List<Finding> all = findings.all(report.id());
-        ReportData data = new ReportData(report,
-                repositories.find(report.repositoryId()).map(dev.codetrace.source.model.SourceRepository::displayName).orElse("repository"),
-                impact.riskFactors(report),
-                all.stream().filter(f -> f.findingType().equals("CHANGED")).toList(),
-                all.stream().filter(f -> f.findingType().equals("AFFECTED")).toList(),
-                all.stream().filter(f -> f.findingType().equals("POSSIBLE")).toList());
-        String filename = "impact-" + Commits.shortHash(report.baseCommit()) + "-" + Commits.shortHash(report.headCommit()) + ".md";
+        ReportDocumentService.Document doc = documents.markdown(reportId);
         return ResponseEntity.ok()
                 .contentType(MARKDOWN)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + doc.filename() + "\"")
                 .header("X-Content-Type-Options", "nosniff")
-                .body(renderer.render(data));
+                .body(doc.markdown());
     }
 }

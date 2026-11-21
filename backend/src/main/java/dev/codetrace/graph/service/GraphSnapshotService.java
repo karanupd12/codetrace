@@ -3,7 +3,7 @@ package dev.codetrace.graph.service;
 import dev.codetrace.common.web.ApiException;
 import dev.codetrace.graph.engine.GraphBuilder;
 import dev.codetrace.graph.repository.GraphSnapshotRepository;
-import dev.codetrace.graph.repository.GraphSnapshotRepository.Snapshot;
+import dev.codetrace.graph.model.Snapshot;
 import dev.codetrace.ingestion.parser.JavaSymbolExtractor;
 import dev.codetrace.jobs.model.IndexedRevision;
 import dev.codetrace.jobs.model.Job;

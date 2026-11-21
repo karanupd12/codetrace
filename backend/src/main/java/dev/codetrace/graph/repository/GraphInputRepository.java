@@ -7,10 +7,10 @@ import dev.codetrace.graph.model.GraphModel.RefFact;
 import dev.codetrace.graph.model.GraphModel.SymbolFact;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Repository;
 
 /** Reads the facts an INDEX job stored: files, symbols, imports and unresolved references. */
-@Component
+@Repository
 public class GraphInputRepository {
     private final JdbcClient jdbc;
 

@@ -17,7 +17,7 @@ import static org.mockito.Mockito.when;
 
 import dev.codetrace.impact.change.ChangeDetector;
 import dev.codetrace.impact.change.ChangeSet;
-import dev.codetrace.impact.repository.ImpactReportRepository.Report;
+import dev.codetrace.impact.model.ImpactReport;
 import dev.codetrace.impact.risk.RiskAssessor.Level;
 import dev.codetrace.impact.risk.RiskAssessor.RiskAssessment;
 import dev.codetrace.ingestion.git.GitSourceManager;
@@ -49,8 +49,8 @@ class ImpactJobHandlerTest {
     private final Job job = mock(Job.class);
     private final Repository gitRepo = mock(Repository.class);
 
-    private static Report report(String status, UUID id, UUID repoId, UUID jobId) {
-        return new Report(id, repoId, "a".repeat(40), "b".repeat(40), UUID.randomUUID(), UUID.randomUUID(), "impact-1", 4,
+    private static ImpactReport report(String status, UUID id, UUID repoId, UUID jobId) {
+        return new ImpactReport(id, repoId, "a".repeat(40), "b".repeat(40), UUID.randomUUID(), UUID.randomUUID(), "impact-1", 4,
                 jobId, status, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 

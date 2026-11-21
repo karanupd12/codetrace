@@ -1,5 +1,6 @@
 package dev.codetrace.impact.repository;
 
+import dev.codetrace.impact.model.ImpactReport;
 import dev.codetrace.common.util.Texts;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -13,18 +14,7 @@ import org.springframework.stereotype.Repository;
 /** Persistence of impact report headers. Findings are written together with completion by {@link ImpactReportWriteRepository}. */
 @Repository
 public class ImpactReportRepository {
-    public record Report(UUID id, UUID repositoryId, String baseCommit, String headCommit, UUID baseSnapshotId,
-                         UUID headSnapshotId, String algorithmVersion, int depth, UUID jobId, String status,
-                         Integer riskScore, String riskLevel, String riskFactorsJson, Integer changedCount,
-                         Integer affectedCount, Integer testsAffectedCount, Integer possibleCount, Integer unmappedHunks,
-                         Integer nonJavaFiles, Boolean truncated, String failureReason, OffsetDateTime createdAt,
-                         OffsetDateTime completedAt) {
-        public boolean completed() {
-            return "COMPLETED".equals(status);
-        }
-    }
-
-    public record Created(Report report, boolean created) {
+    public record Created(ImpactReport report, boolean created) {
     }
 
     private static final String COLS = """
@@ -50,24 +40,24 @@ public class ImpactReportRepository {
                 .param("id", UUID.randomUUID()).param("r", repositoryId).param("bc", baseCommit).param("hc", headCommit)
                 .param("bs", baseSnapshot).param("hs", headSnapshot).param("alg", algorithmVersion).param("d", depth)
                 .param("j", jobId).update();
-        Report report = jdbc.sql("select " + COLS + " from impact_report where repository_id = :r and base_snapshot_id = :bs"
+        ImpactReport report = jdbc.sql("select " + COLS + " from impact_report where repository_id = :r and base_snapshot_id = :bs"
                 + " and head_snapshot_id = :hs and algorithm_version = :alg and depth = :d")
                 .param("r", repositoryId).param("bs", baseSnapshot).param("hs", headSnapshot).param("alg", algorithmVersion)
                 .param("d", depth).query(ImpactReportRepository::map).single();
         return new Created(report, inserted == 1);
     }
 
-    public Optional<Report> find(UUID id) {
+    public Optional<ImpactReport> find(UUID id) {
         return jdbc.sql("select " + COLS + " from impact_report where id = :id").param("id", id)
                 .query(ImpactReportRepository::map).optional();
     }
 
-    public Optional<Report> findByJob(UUID jobId) {
+    public Optional<ImpactReport> findByJob(UUID jobId) {
         return jdbc.sql("select " + COLS + " from impact_report where job_id = :j").param("j", jobId)
                 .query(ImpactReportRepository::map).optional();
     }
 
-    public List<Report> listForRepository(UUID repositoryId, int limit) {
+    public List<ImpactReport> listForRepository(UUID repositoryId, int limit) {
         return jdbc.sql("select " + COLS + " from impact_report where repository_id = :r order by created_at desc limit :l")
                 .param("r", repositoryId).param("l", limit).query(ImpactReportRepository::map).list();
     }
@@ -89,8 +79,8 @@ public class ImpactReportRepository {
                 .param("id", id).update();
     }
 
-    private static Report map(ResultSet rs, int i) throws SQLException {
-        return new Report(rs.getObject("id", UUID.class), rs.getObject("repository_id", UUID.class),
+    private static ImpactReport map(ResultSet rs, int i) throws SQLException {
+        return new ImpactReport(rs.getObject("id", UUID.class), rs.getObject("repository_id", UUID.class),
                 rs.getString("base_commit"), rs.getString("head_commit"), rs.getObject("base_snapshot_id", UUID.class),
                 rs.getObject("head_snapshot_id", UUID.class), rs.getString("algorithm_version"), rs.getInt("depth"),
                 rs.getObject("job_id", UUID.class), rs.getString("status"), (Integer) rs.getObject("risk_score"),

@@ -1,5 +1,6 @@
 package dev.codetrace.graph.repository;
 
+import dev.codetrace.graph.model.Snapshot;
 import dev.codetrace.common.util.Texts;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -17,15 +18,6 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public class GraphSnapshotRepository {
-    public record Snapshot(UUID id, UUID repositoryId, String commitHash, String parserVersion, String builderVersion,
-                           UUID sourceJobId, String status, Integer nodeCount, Integer edgeCount,
-                           Integer resolvedEdgeCount, Integer ambiguousEdgeCount, Integer unresolvedEdgeCount,
-                           String failureReason, OffsetDateTime createdAt, OffsetDateTime publishedAt) {
-        public boolean published() {
-            return "PUBLISHED".equals(status);
-        }
-    }
-
     public record Created(Snapshot snapshot, boolean created) {
     }
 

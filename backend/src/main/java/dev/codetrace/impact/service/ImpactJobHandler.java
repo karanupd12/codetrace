@@ -6,7 +6,7 @@ import dev.codetrace.impact.repository.ImpactReportWriteRepository;
 import dev.codetrace.impact.risk.RiskAssessor;
 import dev.codetrace.impact.change.ChangeDetector;
 import dev.codetrace.impact.change.ChangeSet;
-import dev.codetrace.impact.repository.ImpactReportRepository.Report;
+import dev.codetrace.impact.model.ImpactReport;
 import dev.codetrace.impact.risk.RiskAssessor.RiskAssessment;
 import dev.codetrace.ingestion.git.GitSourceManager;
 import dev.codetrace.jobs.JobFailureException;
@@ -59,7 +59,7 @@ public class ImpactJobHandler implements JobHandler {
 
     @Override
     public void handle(Job job) {
-        Report report = reports.findByJob(job.id()).orElseThrow(
+        ImpactReport report = reports.findByJob(job.id()).orElseThrow(
                 () -> new JobFailureException(Category.INVALID_SOURCE, "No impact report belongs to this job."));
         if (report.completed()) {
             log.info("job {} report {} already completed; nothing to do", job.id(), report.id());

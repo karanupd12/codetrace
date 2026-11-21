@@ -2,7 +2,7 @@ package dev.codetrace.report.markdown.sections;
 
 import static dev.codetrace.report.markdown.MarkdownText.cell;
 
-import dev.codetrace.impact.repository.ImpactReportRepository.Report;
+import dev.codetrace.impact.model.ImpactReport;
 import dev.codetrace.report.markdown.MarkdownText;
 import dev.codetrace.report.markdown.ReportData;
 import dev.codetrace.report.markdown.ReportSection;
@@ -24,7 +24,7 @@ public class SummarySection implements ReportSection {
 
     @Override
     public String render(ReportData d) {
-        Report r = d.report();
+        ImpactReport r = d.report();
         StringBuilder sb = new StringBuilder("## Summary\n\n");
         sb.append("- **Changed symbols:** ").append(r.changedCount()).append('\n');
         sb.append("- **Affected production symbols:** ").append(d.productionAffected().size()).append('\n');

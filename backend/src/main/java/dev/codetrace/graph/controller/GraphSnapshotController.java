@@ -1,11 +1,11 @@
 package dev.codetrace.graph.controller;
 
+import dev.codetrace.graph.controller.dto.BuildRequest;
+import dev.codetrace.graph.controller.dto.BuildResponse;
+import dev.codetrace.graph.controller.dto.SnapshotResponse;
 import dev.codetrace.graph.service.GraphSnapshotService;
-import dev.codetrace.graph.repository.GraphSnapshotRepository.Snapshot;
 import dev.codetrace.jobs.controller.dto.JobResponse;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Size;
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
@@ -23,23 +23,6 @@ import org.springframework.web.bind.annotation.RestController;
 @Profile("api")
 @RequestMapping("/api/v1")
 public class GraphSnapshotController {
-    public record BuildRequest(@Size(max = 64) String commitHash) {
-    }
-
-    public record SnapshotView(UUID id, UUID repositoryId, String commitHash, String parserVersion,
-                               String builderVersion, String status, Integer nodeCount, Integer edgeCount,
-                               Integer resolvedEdgeCount, Integer ambiguousEdgeCount, Integer unresolvedEdgeCount,
-                               String failureReason, OffsetDateTime createdAt, OffsetDateTime publishedAt) {
-        public static SnapshotView of(Snapshot s) {
-            return new SnapshotView(s.id(), s.repositoryId(), s.commitHash(), s.parserVersion(), s.builderVersion(),
-                    s.status(), s.nodeCount(), s.edgeCount(), s.resolvedEdgeCount(), s.ambiguousEdgeCount(),
-                    s.unresolvedEdgeCount(), s.failureReason(), s.createdAt(), s.publishedAt());
-        }
-    }
-
-    public record BuildView(SnapshotView snapshot, JobResponse job) {
-    }
-
     private final GraphSnapshotService service;
 
     public GraphSnapshotController(GraphSnapshotService service) {
@@ -48,18 +31,18 @@ public class GraphSnapshotController {
 
     @PostMapping("/repositories/{id}/graph-snapshots")
     @ResponseStatus(HttpStatus.ACCEPTED)
-    public BuildView build(@PathVariable UUID id, @Valid @RequestBody(required = false) BuildRequest req) {
+    public BuildResponse build(@PathVariable UUID id, @Valid @RequestBody(required = false) BuildRequest req) {
         GraphSnapshotService.Requested r = service.requestBuild(id, req == null ? null : req.commitHash());
-        return new BuildView(SnapshotView.of(r.snapshot()), JobResponse.from(r.job()));
+        return new BuildResponse(SnapshotResponse.from(r.snapshot()), JobResponse.from(r.job()));
     }
 
     @GetMapping("/repositories/{id}/snapshots")
-    public List<SnapshotView> list(@PathVariable UUID id) {
-        return service.list(id).stream().map(SnapshotView::of).toList();
+    public List<SnapshotResponse> list(@PathVariable UUID id) {
+        return service.list(id).stream().map(SnapshotResponse::from).toList();
     }
 
     @GetMapping("/snapshots/{snapshotId}")
-    public SnapshotView get(@PathVariable UUID snapshotId) {
-        return SnapshotView.of(service.get(snapshotId));
+    public SnapshotResponse get(@PathVariable UUID snapshotId) {
+        return SnapshotResponse.from(service.get(snapshotId));
     }
 }

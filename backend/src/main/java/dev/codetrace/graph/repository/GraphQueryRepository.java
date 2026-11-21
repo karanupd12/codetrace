@@ -1,5 +1,10 @@
 package dev.codetrace.graph.repository;
 
+import dev.codetrace.graph.model.Degree;
+import dev.codetrace.graph.model.Direction;
+import dev.codetrace.graph.model.EdgeView;
+import dev.codetrace.graph.model.NodeView;
+import dev.codetrace.graph.model.UnresolvedCall;
 import dev.codetrace.common.util.Batches;
 import dev.codetrace.common.util.SqlLike;
 import dev.codetrace.common.web.Page;
@@ -7,7 +12,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -20,23 +27,6 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public class GraphQueryRepository {
-    public record NodeView(UUID id, String nodeType, String qualifiedName, String signature, String simpleName,
-                           String subtype, String path, int startLine, int endLine, String modifiers,
-                           String extractionMethod, String parserVersion) {
-    }
-
-    /** An edge with its full provenance. {@code dstId} is null for UNRESOLVED edges; {@code dstName} then says what was sought. */
-    public record EdgeView(long id, UUID srcId, String srcName, UUID dstId, String dstName, String edgeType,
-                           String resolution, double confidence, String evidenceKind, String reason,
-                           String alternativeGroup, String evidencePath, int evidenceLine, int occurrences,
-                           String extractionMethod, String resolverVersion) {
-    }
-
-    public record Degree(String edgeType, String resolution, long count) {
-    }
-
-    public enum Direction { OUT, IN, BOTH }
-
     private static final String EDGE_SELECT = """
             select e.id, e.src_node_id, s.qualified_name as src_name, e.dst_node_id,
                    coalesce(d.qualified_name, e.dst_name) as dst_name, e.edge_type, e.resolution_state, e.confidence,
@@ -147,6 +137,62 @@ public class GraphQueryRepository {
     }
 
     // ---- helpers ----------------------------------------------------------------------------------------------------
+
+    // ---- declarations and dependents (used by impact analysis) ------------------------------------------------------
+
+    /** Types, methods and fields declared in the given files, in file and line order. */
+    public List<NodeView> declarationsIn(UUID snapshotId, Collection<String> paths) {
+        List<NodeView> out = new ArrayList<>();
+        for (List<String> chunk : Batches.partition(paths)) {
+            out.addAll(jdbc.sql("select " + NODE_COLS + " from code_node where snapshot_id = :s and path in (:paths)"
+                            + " and node_type in ('TYPE', 'METHOD', 'FIELD')"
+                            + " order by path, start_line, end_line, qualified_name, signature")
+                    .param("s", snapshotId).param("paths", chunk).query(GraphQueryRepository::node).list());
+        }
+        return out;
+    }
+
+    /** For each target, how many distinct nodes have a resolved or ambiguous edge of the given types into it. */
+    public Map<UUID, Integer> dependentCounts(UUID snapshotId, Collection<UUID> targets, Set<String> edgeTypes) {
+        Map<UUID, Integer> out = new HashMap<>();
+        for (List<UUID> chunk : Batches.partition(targets)) {
+            jdbc.sql("""
+                    select dst_node_id, count(distinct src_node_id) as n
+                      from dependency_edge
+                     where snapshot_id = :s and dst_node_id in (:ids) and edge_type in (:types)
+                       and resolution_state in ('RESOLVED', 'AMBIGUOUS')
+                     group by dst_node_id""")
+                    .param("s", snapshotId).param("ids", chunk).param("types", edgeTypes)
+                    .query((rs, n) -> Map.entry(rs.getObject("dst_node_id", UUID.class), rs.getInt("n")))
+                    .list().forEach(e -> out.put(e.getKey(), e.getValue()));
+        }
+        return out;
+    }
+
+    /**
+     * Calls whose receiver type could not be determined and whose method name is one of {@code methodNames}. The
+     * resolver records such a target as {@code ?#name/argCount}.
+     */
+    public List<UnresolvedCall> unknownReceiverCalls(UUID snapshotId, Collection<String> methodNames, int limit) {
+        if (methodNames.isEmpty() || limit <= 0) return List.of();
+        List<String> sought = methodNames.stream().map(n -> "?#" + n).toList();
+        return jdbc.sql("""
+                select e.src_node_id, n.qualified_name, e.evidence_path, e.evidence_line, e.dst_name
+                  from dependency_edge e
+                  join code_node n on n.snapshot_id = e.snapshot_id and n.id = e.src_node_id
+                 where e.snapshot_id = :s and e.edge_type = 'CALLS' and e.resolution_state = 'UNRESOLVED'
+                   and e.reason = 'RECEIVER_TYPE_UNKNOWN' and split_part(e.dst_name, '/', 1) in (:names)
+                 order by e.evidence_path, e.evidence_line, e.id
+                 limit :lim""")
+                .param("s", snapshotId).param("names", sought).param("lim", limit)
+                .query((rs, i) -> {
+                    String[] target = rs.getString("dst_name").substring(2).split("/", 2); // name, argCount
+                    int argc = target.length > 1 ? Integer.parseInt(target[1]) : -1;
+                    return new UnresolvedCall(rs.getObject("src_node_id", UUID.class), rs.getString("qualified_name"),
+                            rs.getString("evidence_path"), rs.getInt("evidence_line"), target[0], argc);
+                })
+                .list();
+    }
 
     private static NodeView node(ResultSet rs, int i) throws SQLException {
         return new NodeView(rs.getObject("id", UUID.class), rs.getString("node_type"), rs.getString("qualified_name"),

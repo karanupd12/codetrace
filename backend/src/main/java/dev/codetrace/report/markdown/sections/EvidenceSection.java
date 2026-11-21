@@ -4,7 +4,7 @@ import static dev.codetrace.report.markdown.MarkdownText.code;
 import static dev.codetrace.report.markdown.MarkdownText.plain;
 
 import dev.codetrace.impact.model.ImpactAnalysis.Hop;
-import dev.codetrace.impact.service.ImpactReportService.Finding;
+import dev.codetrace.impact.model.Finding;
 import dev.codetrace.report.markdown.ReportData;
 import dev.codetrace.report.markdown.ReportSection;
 import java.util.Comparator;

@@ -23,7 +23,7 @@ import static org.mockito.Mockito.when;
 import dev.codetrace.config.GraphProperties;
 import dev.codetrace.graph.model.GraphModel.Input;
 import dev.codetrace.graph.repository.GraphSnapshotRepository.Created;
-import dev.codetrace.graph.repository.GraphSnapshotRepository.Snapshot;
+import dev.codetrace.graph.model.Snapshot;
 import dev.codetrace.jobs.JobFailureException;
 import dev.codetrace.jobs.JobFailureException.Category;
 import dev.codetrace.jobs.service.JobService;

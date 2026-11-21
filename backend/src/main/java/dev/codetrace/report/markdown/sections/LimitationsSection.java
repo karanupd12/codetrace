@@ -1,6 +1,6 @@
 package dev.codetrace.report.markdown.sections;
 
-import dev.codetrace.impact.repository.ImpactReportRepository.Report;
+import dev.codetrace.impact.model.ImpactReport;
 import dev.codetrace.report.markdown.ReportData;
 import dev.codetrace.report.markdown.ReportSection;
 import org.springframework.stereotype.Component;
@@ -20,7 +20,7 @@ public class LimitationsSection implements ReportSection {
 
     @Override
     public String render(ReportData d) {
-        Report r = d.report();
+        ImpactReport r = d.report();
         StringBuilder sb = new StringBuilder("## Reading this report and its limits\n\n");
         sb.append("- **Risk levels:** LOW below 25, MEDIUM 25–49, HIGH 50–74, CRITICAL 75 and above. The score ranks changes for review; it does not predict defects.\n");
         sb.append("- **Dependents come from the base revision's graph**, because that is the code that relied on the old behaviour. Symbols added by the change have no dependents yet.\n");

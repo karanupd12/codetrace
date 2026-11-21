@@ -1,6 +1,6 @@
 package dev.codetrace.impact.engine;
 
-import dev.codetrace.graph.repository.GraphQueryRepository.EdgeView;
+import dev.codetrace.graph.model.EdgeView;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;

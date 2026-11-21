@@ -7,12 +7,12 @@ import dev.codetrace.common.util.JsonCodec;
 import dev.codetrace.common.web.ApiException;
 import dev.codetrace.common.web.Page;
 import dev.codetrace.config.ImpactProperties;
-import dev.codetrace.graph.repository.GraphSnapshotRepository.Snapshot;
+import dev.codetrace.graph.model.Snapshot;
 import dev.codetrace.graph.service.GraphSnapshotService;
-import dev.codetrace.impact.model.ImpactAnalysis.Hop;
+import dev.codetrace.impact.model.Finding;
 import dev.codetrace.impact.repository.ImpactFindingRepository;
 import dev.codetrace.impact.repository.ImpactReportRepository;
-import dev.codetrace.impact.repository.ImpactReportRepository.Report;
+import dev.codetrace.impact.model.ImpactReport;
 import dev.codetrace.impact.risk.RiskSignal.RiskFactor;
 import dev.codetrace.jobs.model.Job;
 import dev.codetrace.jobs.model.JobKeys;
@@ -32,12 +32,7 @@ public class ImpactReportService {
     private static final TypeReference<List<RiskFactor>> RISK_FACTORS = new TypeReference<>() {
     };
 
-    public record Requested(Report report, Job job) {
-    }
-
-    public record Finding(String findingType, int ordinal, String name, String nodeType, String path, int line,
-                          String module, boolean test, String changeKind, Integer directDependents, Integer distance,
-                          Boolean certain, Double confidence, String changedSymbol, List<Hop> chain) {
+    public record Requested(ImpactReport report, Job job) {
     }
 
     private final SourceRepositoryService repositories;
@@ -83,7 +78,7 @@ public class ImpactReportService {
                 JobKeys.impact(repo.id(), baseSnap.id(), headSnap.id(), ImpactAnalyzer.ALGORITHM_VERSION, depth));
         ImpactReportRepository.Created created = reports.createOrGet(repo.id(), base, head, baseSnap.id(), headSnap.id(),
                 ImpactAnalyzer.ALGORITHM_VERSION, depth, job.job().id());
-        Report report = created.report();
+        ImpactReport report = created.report();
         if (!report.completed()) {
             if (job.created() || created.created()) {
                 jobs.publish(job.job().id());
@@ -94,33 +89,38 @@ public class ImpactReportService {
         return new Requested(reports.find(report.id()).orElseThrow(), jobs.get(report.jobId()));
     }
 
-    public Report get(UUID reportId) {
+    public ImpactReport get(UUID reportId) {
         return reports.find(reportId).orElseThrow(() -> ApiException.notFound("Impact report not found."));
     }
 
-    public List<Report> list(UUID repositoryId) {
+    public List<ImpactReport> list(UUID repositoryId) {
         repositories.get(repositoryId);
         return reports.listForRepository(repositoryId, 50);
     }
 
     public Page<Finding> findings(UUID reportId, String type, String module, int limit, int offset) {
-        Report r = completed(reportId);
+        ImpactReport r = completed(reportId);
         if (type != null && !FINDING_TYPES.contains(type)) {
             throw ApiException.badRequest("type must be one of CHANGED, AFFECTED, POSSIBLE.");
         }
         return findings.page(r.id(), type, module, Bounds.limit(limit, 500), Bounds.offset(offset));
     }
 
+    /** Every finding of a completed report in report order; bounded by the analysis limits. */
+    public List<Finding> allFindings(UUID reportId) {
+        return findings.all(completed(reportId).id());
+    }
+
     /** A report whose findings may be read: only COMPLETED reports are exposed. */
-    public Report completed(UUID reportId) {
-        Report r = get(reportId);
+    public ImpactReport completed(UUID reportId) {
+        ImpactReport r = get(reportId);
         if (!r.completed()) {
             throw ApiException.conflict("Report is " + r.status() + "; its findings are available once it is completed.");
         }
         return r;
     }
 
-    public List<RiskFactor> riskFactors(Report r) {
+    public List<RiskFactor> riskFactors(ImpactReport r) {
         return json.read(r.riskFactorsJson(), RISK_FACTORS, List.of());
     }
 

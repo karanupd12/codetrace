@@ -13,7 +13,7 @@ import dev.codetrace.graph.model.GraphModel.Node;
 import dev.codetrace.graph.model.GraphModel.NodeType;
 import dev.codetrace.graph.model.GraphModel.Resolution;
 import dev.codetrace.graph.model.GraphModel.Result;
-import dev.codetrace.graph.repository.GraphSnapshotRepository.Snapshot;
+import dev.codetrace.graph.model.Snapshot;
 import dev.codetrace.source.repository.SourceRepositoryRepository;
 import dev.codetrace.source.model.SourceType;
 import java.nio.charset.StandardCharsets;

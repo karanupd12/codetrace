@@ -14,14 +14,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Stores an analysis and completes its report in one transaction: either the report is COMPLETED with every finding
  * present, or nothing of this run is visible. A completed report is immutable (database triggers).
  */
-@Component
+@Repository
 public class ImpactReportWriteRepository {
     private static final String INSERT = """
             insert into impact_finding (report_id, finding_type, ordinal, name, node_type, path, line, module, is_test,

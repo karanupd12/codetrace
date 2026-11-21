@@ -9,7 +9,7 @@ import dev.codetrace.config.GraphProperties;
 import dev.codetrace.graph.model.GraphModel.Input;
 import dev.codetrace.graph.model.GraphModel.Limits;
 import dev.codetrace.graph.model.GraphModel.Result;
-import dev.codetrace.graph.repository.GraphSnapshotRepository.Snapshot;
+import dev.codetrace.graph.model.Snapshot;
 import dev.codetrace.jobs.JobFailureException;
 import dev.codetrace.jobs.JobFailureException.Category;
 import dev.codetrace.jobs.service.JobService;

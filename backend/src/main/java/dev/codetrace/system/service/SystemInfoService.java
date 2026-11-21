@@ -4,19 +4,19 @@ import dev.codetrace.config.RoleProperties;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.info.BuildProperties;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.jdbc.core.JdbcTemplate;
+import dev.codetrace.system.repository.SchemaInfoRepository;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SystemInfoService {
-    private final JdbcTemplate jdbc;
+    private final SchemaInfoRepository schema;
     private final RedisConnectionFactory redis;
     private final RoleProperties role;
     private final ObjectProvider<BuildProperties> build;
 
-    public SystemInfoService(JdbcTemplate jdbc, RedisConnectionFactory redis, RoleProperties role,
+    public SystemInfoService(SchemaInfoRepository schema, RedisConnectionFactory redis, RoleProperties role,
                              ObjectProvider<BuildProperties> build) {
-        this.jdbc = jdbc;
+        this.schema = schema;
         this.redis = redis;
         this.role = role;
         this.build = build;
@@ -25,17 +25,7 @@ public class SystemInfoService {
     public SystemInfo info() {
         BuildProperties bp = build.getIfAvailable();
         return new SystemInfo("codetrace", bp != null ? bp.getVersion() : "dev", role.role(),
-                migrationVersion(), redisStatus());
-    }
-
-    private String migrationVersion() {
-        try {
-            return jdbc.queryForObject(
-                    "select version from flyway_schema_history where success order by installed_rank desc limit 1",
-                    String.class);
-        } catch (Exception e) {
-            return null;
-        }
+                schema.latestMigrationVersion().orElse(null), redisStatus());
     }
 
     private String redisStatus() {

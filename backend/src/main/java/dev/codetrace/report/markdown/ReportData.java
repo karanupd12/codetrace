@@ -1,12 +1,12 @@
 package dev.codetrace.report.markdown;
 
-import dev.codetrace.impact.repository.ImpactReportRepository.Report;
-import dev.codetrace.impact.service.ImpactReportService.Finding;
+import dev.codetrace.impact.model.ImpactReport;
+import dev.codetrace.impact.model.Finding;
 import dev.codetrace.impact.risk.RiskSignal.RiskFactor;
 import java.util.List;
 
 /** Everything a report section may draw on: the stored report header and its findings, nothing recomputed. */
-public record ReportData(Report report, String repositoryName, List<RiskFactor> factors, List<Finding> changed,
+public record ReportData(ImpactReport report, String repositoryName, List<RiskFactor> factors, List<Finding> changed,
                          List<Finding> affected, List<Finding> possible) {
 
     public List<Finding> productionAffected() {

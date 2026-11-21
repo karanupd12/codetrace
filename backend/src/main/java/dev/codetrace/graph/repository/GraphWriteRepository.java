@@ -4,7 +4,7 @@ import dev.codetrace.graph.engine.GraphBuilder;
 import dev.codetrace.graph.model.GraphModel.Edge;
 import dev.codetrace.graph.model.GraphModel.Node;
 import dev.codetrace.graph.model.GraphModel.Result;
-import dev.codetrace.graph.repository.GraphSnapshotRepository.Snapshot;
+import dev.codetrace.graph.model.Snapshot;
 import dev.codetrace.ingestion.parser.JavaSymbolExtractor;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -13,14 +13,14 @@ import java.sql.SQLException;
 import java.sql.Types;
 import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Writes one snapshot's nodes and edges and moves it to VALIDATING in a single transaction: either the whole graph is
  * stored or none of it is. The snapshot stays invisible (not PUBLISHED) until validation succeeds.
  */
-@Component
+@Repository
 public class GraphWriteRepository {
     private static final int BATCH = 1000;
 

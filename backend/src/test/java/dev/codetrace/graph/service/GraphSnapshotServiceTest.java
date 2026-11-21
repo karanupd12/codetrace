@@ -12,7 +12,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import dev.codetrace.graph.repository.GraphSnapshotRepository.Snapshot;
+import dev.codetrace.graph.model.Snapshot;
 import dev.codetrace.jobs.repository.JobRepository;
 import dev.codetrace.jobs.model.IndexedRevision;
 import dev.codetrace.jobs.model.Job;

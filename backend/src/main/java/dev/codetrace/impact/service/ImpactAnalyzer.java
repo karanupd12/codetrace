@@ -5,27 +5,24 @@ import dev.codetrace.common.util.JavaSignatures;
 import dev.codetrace.common.util.SourcePaths;
 import dev.codetrace.impact.engine.BlastRadiusCalculator;
 import dev.codetrace.impact.model.ImpactAnalysis;
-import dev.codetrace.impact.repository.ImpactGraphRepository;
 import dev.codetrace.impact.change.ChangeSet;
 import dev.codetrace.impact.change.ChangeSet.FileChange;
 import dev.codetrace.impact.change.ChangedSymbolMapper;
 import dev.codetrace.impact.change.ChangedSymbolMapper.ChangedSymbol;
 import dev.codetrace.impact.change.ChangedSymbolMapper.Kind;
 import dev.codetrace.impact.change.ChangedSymbolMapper.Mapping;
-import dev.codetrace.impact.repository.SnapshotDeclarationRepository;
 import dev.codetrace.impact.change.SymbolRef;
 import dev.codetrace.config.ImpactProperties;
-import dev.codetrace.graph.repository.GraphQueryRepository;
-import dev.codetrace.graph.repository.GraphQueryRepository.Direction;
-import dev.codetrace.graph.repository.GraphQueryRepository.EdgeView;
-import dev.codetrace.graph.repository.GraphQueryRepository.NodeView;
+import dev.codetrace.graph.service.GraphQueryService;
+import dev.codetrace.graph.model.EdgeView;
+import dev.codetrace.graph.model.NodeView;
 import dev.codetrace.impact.engine.BlastRadiusCalculator.Affected;
 import dev.codetrace.impact.engine.BlastRadiusCalculator.Result;
 import dev.codetrace.impact.model.ImpactAnalysis.AffectedSymbol;
 import dev.codetrace.impact.model.ImpactAnalysis.ChangedEntry;
 import dev.codetrace.impact.model.ImpactAnalysis.Hop;
 import dev.codetrace.impact.model.ImpactAnalysis.PossibleDependent;
-import dev.codetrace.impact.repository.ImpactGraphRepository.UnresolvedCaller;
+import dev.codetrace.graph.model.UnresolvedCall;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -45,24 +42,16 @@ import org.springframework.stereotype.Component;
 @Component
 public class ImpactAnalyzer {
     public static final String ALGORITHM_VERSION = "impact-2"; // 2: edits to comments and whitespace no longer mark symbols as changed
-    /** Edge types that make one symbol depend on another. Containment and imports are structure, not dependency. */
-    static final Set<String> DEPENDENCY_EDGES = Set.of("CALLS", "REFERENCES", "EXTENDS", "IMPLEMENTS");
-    private static final Set<String> TRAVERSABLE = Set.of("RESOLVED", "AMBIGUOUS");
     private static final int MAX_POSSIBLE = 200;
 
     private final ChangedSymbolMapper mapper;
-    private final SnapshotDeclarationRepository declarations;
-    private final GraphQueryRepository graph;
-    private final ImpactGraphRepository impactDao;
+    private final GraphQueryService graph;
     private final ImpactProperties limits;
     private final BlastRadiusCalculator calculator = new BlastRadiusCalculator();
 
-    public ImpactAnalyzer(ChangedSymbolMapper mapper, SnapshotDeclarationRepository declarations, GraphQueryRepository graph,
-                          ImpactGraphRepository impactDao, ImpactProperties limits) {
+    public ImpactAnalyzer(ChangedSymbolMapper mapper, GraphQueryService graph, ImpactProperties limits) {
         this.mapper = mapper;
-        this.declarations = declarations;
         this.graph = graph;
-        this.impactDao = impactDao;
         this.limits = limits;
     }
 
@@ -75,7 +64,7 @@ public class ImpactAnalyzer {
             if (f.oldPath() != null) oldPaths.add(f.oldPath());
             if (f.newPath() != null) newPaths.add(f.newPath());
         }
-        Mapping mapping = mapper.map(changes, declarations.byPath(baseSnapshot, oldPaths), declarations.byPath(headSnapshot, newPaths));
+        Mapping mapping = mapper.map(changes, declarationsByPath(baseSnapshot, oldPaths), declarationsByPath(headSnapshot, newPaths));
 
         // seeds: symbols that existed before the change and were modified or removed
         Map<UUID, ChangedSymbol> seeds = new LinkedHashMap<>();
@@ -85,10 +74,10 @@ public class ImpactAnalyzer {
 
         int edgeCap = limits.maxAffected() * 10;
         Result radius = calculator.calculate(new LinkedHashSet<>(seeds.keySet()), depth, limits.maxAffected(),
-                frontier -> graph.touching(baseSnapshot, frontier, Direction.IN, DEPENDENCY_EDGES, TRAVERSABLE, true, edgeCap),
+                frontier -> graph.dependentsOf(baseSnapshot, frontier, edgeCap),
                 edgeCap);
 
-        Map<UUID, Integer> direct = impactDao.directDependents(baseSnapshot, seeds.keySet(), DEPENDENCY_EDGES);
+        Map<UUID, Integer> direct = graph.directDependentCounts(baseSnapshot, seeds.keySet());
         List<ChangedEntry> changed = mapping.symbols().stream()
                 .map(c -> new ChangedEntry(c.kind(), c.base(), c.head(), c.base() == null ? 0 : direct.getOrDefault(c.base().nodeId(), 0)))
                 .toList();
@@ -100,6 +89,16 @@ public class ImpactAnalyzer {
                 changes.nonJavaFileCount(), radius.truncated());
     }
 
+    /** The declarations of the given files in a snapshot, grouped by file. */
+    private Map<String, List<SymbolRef>> declarationsByPath(UUID snapshot, Set<String> paths) {
+        Map<String, List<SymbolRef>> out = new LinkedHashMap<>();
+        for (NodeView n : graph.declarationsIn(snapshot, paths)) {
+            out.computeIfAbsent(n.path(), k -> new ArrayList<>()).add(new SymbolRef(n.id(), n.nodeType(), n.qualifiedName(),
+                    n.signature(), n.path(), n.startLine(), n.endLine(), n.modifiers()));
+        }
+        return out;
+    }
+
     private int clampDepth(Integer requested) {
         int d = requested == null ? limits.defaultDepth() : requested;
         return Bounds.clamp(d, 1, limits.maxDepth());
@@ -107,7 +106,7 @@ public class ImpactAnalyzer {
 
     private List<AffectedSymbol> describe(UUID snapshot, List<Affected> found, Map<UUID, ChangedSymbol> seeds) {
         Map<UUID, NodeView> nodes = new LinkedHashMap<>();
-        graph.nodesByIds(snapshot, found.stream().map(Affected::nodeId).toList()).forEach(n -> nodes.put(n.id(), n));
+        graph.nodes(snapshot, found.stream().map(Affected::nodeId).toList()).forEach(n -> nodes.put(n.id(), n));
         List<AffectedSymbol> out = new ArrayList<>();
         for (Affected a : found) {
             NodeView n = nodes.get(a.nodeId());
@@ -150,10 +149,10 @@ public class ImpactAnalyzer {
         Set<UUID> known = new LinkedHashSet<>(seeds.keySet());
         affected.forEach(a -> known.add(a.nodeId()));
         List<PossibleDependent> out = new ArrayList<>();
-        for (UnresolvedCaller u : impactDao.unknownReceiverCallers(snapshot, changedByName.keySet(), MAX_POSSIBLE)) {
-            if (known.contains(u.nodeId())) continue;
+        for (UnresolvedCall u : graph.unknownReceiverCalls(snapshot, changedByName.keySet(), MAX_POSSIBLE)) {
+            if (known.contains(u.callerId())) continue;
             changedByName.getOrDefault(u.methodName(), List.of()).stream().filter(m -> m.accepts(u.argCount())).findFirst()
-                    .ifPresent(m -> out.add(new PossibleDependent(u.nodeId(), u.qualifiedName(), u.path(), u.line(), m.qualifiedName())));
+                    .ifPresent(m -> out.add(new PossibleDependent(u.callerId(), u.callerName(), u.path(), u.line(), m.qualifiedName())));
         }
         return List.copyOf(out);
     }

@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.codetrace.impact.model.ImpactAnalysis.Hop;
-import dev.codetrace.impact.repository.ImpactReportRepository.Report;
-import dev.codetrace.impact.service.ImpactReportService.Finding;
+import dev.codetrace.impact.model.ImpactReport;
+import dev.codetrace.impact.model.Finding;
 import dev.codetrace.impact.risk.RiskSignal.RiskFactor;
 import dev.codetrace.report.markdown.sections.AffectedSection;
 import dev.codetrace.report.markdown.sections.ChangedSymbolsSection;
@@ -30,8 +30,8 @@ class MarkdownReportRendererTest {
             new LimitationsSection(), new PossibleDependentsSection(), new EvidenceSection(), new AffectedSection(),
             new ChangedSymbolsSection(), new SummarySection(), new HeaderSection())); // deliberately unordered
 
-    private static Report report(int score, String level, boolean truncated, int unmapped, int nonJava) {
-        return new Report(ID, UUID.randomUUID(), BASE, HEAD, UUID.fromString("00000000-0000-0000-0000-0000000000b1"),
+    private static ImpactReport report(int score, String level, boolean truncated, int unmapped, int nonJava) {
+        return new ImpactReport(ID, UUID.randomUUID(), BASE, HEAD, UUID.fromString("00000000-0000-0000-0000-0000000000b1"),
                 UUID.fromString("00000000-0000-0000-0000-0000000000b2"), "impact-1", 4, UUID.randomUUID(), "COMPLETED",
                 score, level, "[]", 1, 2, 1, 0, unmapped, nonJava, truncated, null,
                 OffsetDateTime.parse("2026-11-21T10:15:30Z"), OffsetDateTime.parse("2026-11-21T10:16:00+05:30"));
@@ -52,7 +52,7 @@ class MarkdownReportRendererTest {
                 new RiskFactor("02-blast-radius", 5, 35, "2 production symbol(s) depend on the change."));
     }
 
-    private ReportData data(Report r, List<Finding> changed, List<Finding> affected, List<Finding> possible) {
+    private ReportData data(ImpactReport r, List<Finding> changed, List<Finding> affected, List<Finding> possible) {
         return new ReportData(r, "shop", factors(), changed, affected, possible);
     }
 

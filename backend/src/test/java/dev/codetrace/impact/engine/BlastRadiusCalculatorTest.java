@@ -2,7 +2,7 @@ package dev.codetrace.impact.engine;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import dev.codetrace.graph.repository.GraphQueryRepository.EdgeView;
+import dev.codetrace.graph.model.EdgeView;
 import dev.codetrace.impact.engine.BlastRadiusCalculator.Affected;
 import dev.codetrace.impact.engine.BlastRadiusCalculator.Result;
 import java.util.ArrayList;

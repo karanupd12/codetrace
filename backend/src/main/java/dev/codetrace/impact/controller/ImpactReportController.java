@@ -1,17 +1,14 @@
 package dev.codetrace.impact.controller;
 
-import dev.codetrace.impact.service.ImpactReportService;
-import dev.codetrace.impact.repository.ImpactReportRepository.Report;
-import dev.codetrace.impact.service.ImpactReportService.Finding;
-import dev.codetrace.impact.risk.RiskSignal.RiskFactor;
-import dev.codetrace.jobs.controller.dto.JobResponse;
 import dev.codetrace.common.web.Page;
+import dev.codetrace.impact.controller.dto.ImpactReportRequest;
+import dev.codetrace.impact.controller.dto.ImpactReportResponse;
+import dev.codetrace.impact.controller.dto.ImpactRequestedResponse;
+import dev.codetrace.impact.model.Finding;
+import dev.codetrace.impact.model.ImpactReport;
+import dev.codetrace.impact.service.ImpactReportService;
+import dev.codetrace.jobs.controller.dto.JobResponse;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
@@ -30,20 +27,6 @@ import org.springframework.web.bind.annotation.RestController;
 @Profile("api")
 @RequestMapping("/api/v1")
 public class ImpactReportController {
-    public record ReportRequest(@NotBlank @Size(max = 64) String baseCommit, @NotBlank @Size(max = 64) String headCommit,
-                                @Min(1) @Max(20) Integer depth) {
-    }
-
-    public record ReportView(UUID id, UUID repositoryId, String baseCommit, String headCommit, UUID baseSnapshotId,
-                             UUID headSnapshotId, String algorithmVersion, int depth, String status, Integer riskScore,
-                             String riskLevel, List<RiskFactor> riskFactors, Integer changedCount, Integer affectedCount,
-                             Integer testsAffectedCount, Integer possibleCount, Integer unmappedHunks, Integer nonJavaFiles,
-                             Boolean truncated, String failureReason, OffsetDateTime createdAt, OffsetDateTime completedAt) {
-    }
-
-    public record RequestedView(ReportView report, JobResponse job) {
-    }
-
     private final ImpactReportService service;
 
     public ImpactReportController(ImpactReportService service) {
@@ -52,19 +35,19 @@ public class ImpactReportController {
 
     @PostMapping("/repositories/{id}/impact-reports")
     @ResponseStatus(HttpStatus.ACCEPTED)
-    public RequestedView request(@PathVariable UUID id, @Valid @RequestBody ReportRequest req) {
+    public ImpactRequestedResponse request(@PathVariable UUID id, @Valid @RequestBody ImpactReportRequest req) {
         ImpactReportService.Requested r = service.request(id, req.baseCommit(), req.headCommit(), req.depth());
-        return new RequestedView(view(r.report()), JobResponse.from(r.job()));
+        return new ImpactRequestedResponse(response(r.report()), JobResponse.from(r.job()));
     }
 
     @GetMapping("/repositories/{id}/impact-reports")
-    public List<ReportView> list(@PathVariable UUID id) {
-        return service.list(id).stream().map(this::view).toList();
+    public List<ImpactReportResponse> list(@PathVariable UUID id) {
+        return service.list(id).stream().map(this::response).toList();
     }
 
     @GetMapping("/impact-reports/{reportId}")
-    public ReportView get(@PathVariable UUID reportId) {
-        return view(service.get(reportId));
+    public ImpactReportResponse get(@PathVariable UUID reportId) {
+        return response(service.get(reportId));
     }
 
     @GetMapping("/impact-reports/{reportId}/findings")
@@ -74,10 +57,7 @@ public class ImpactReportController {
         return service.findings(reportId, type, module, limit, offset);
     }
 
-    private ReportView view(Report r) {
-        return new ReportView(r.id(), r.repositoryId(), r.baseCommit(), r.headCommit(), r.baseSnapshotId(), r.headSnapshotId(),
-                r.algorithmVersion(), r.depth(), r.status(), r.riskScore(), r.riskLevel(), service.riskFactors(r),
-                r.changedCount(), r.affectedCount(), r.testsAffectedCount(), r.possibleCount(), r.unmappedHunks(),
-                r.nonJavaFiles(), r.truncated(), r.failureReason(), r.createdAt(), r.completedAt());
+    private ImpactReportResponse response(ImpactReport r) {
+        return ImpactReportResponse.from(r, service.riskFactors(r));
     }
 }

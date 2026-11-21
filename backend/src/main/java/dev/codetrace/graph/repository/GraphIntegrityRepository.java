@@ -4,14 +4,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Repository;
 
 /**
  * Checks a staged snapshot's invariants with SQL before it may be published. Foreign keys and CHECK constraints already
  * make dangling edges and malformed edges impossible; these queries verify the properties constraints cannot express.
  * Any violation fails the snapshot: it is never published "mostly valid".
  */
-@Component
+@Repository
 public class GraphIntegrityRepository {
     private final JdbcClient jdbc;
 

@@ -2,7 +2,7 @@ package dev.codetrace.report.markdown.sections;
 
 import static dev.codetrace.report.markdown.MarkdownText.code;
 
-import dev.codetrace.impact.service.ImpactReportService.Finding;
+import dev.codetrace.impact.model.Finding;
 import dev.codetrace.report.markdown.ReportData;
 import dev.codetrace.report.markdown.ReportSection;
 import java.util.List;
