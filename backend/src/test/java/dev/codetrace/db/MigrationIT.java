@@ -43,16 +43,17 @@ class MigrationIT {
     void migrationsApplyAndRerunningIsANoOp() throws SQLException {
         Flyway flyway = migrate();
         flyway.migrate(); // second run must change nothing
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("4");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("5");
         assertThat(flyway.info().pending()).isEmpty();
         try (Connection c = connect();
              PreparedStatement ps = c.prepareStatement("""
                      select count(*) from information_schema.tables where table_schema = 'public' and table_name in
                      ('schema_info','index_job','repository','revision','indexed_file','code_symbol','code_import',
-                      'code_reference','parse_diagnostic','graph_snapshot','code_node','dependency_edge')""");
+                      'code_reference','parse_diagnostic','graph_snapshot','code_node','dependency_edge',
+                      'impact_report','impact_finding')""");
              ResultSet rs = ps.executeQuery()) {
             rs.next();
-            assertThat(rs.getInt(1)).isEqualTo(12);
+            assertThat(rs.getInt(1)).isEqualTo(14);
         }
     }
 

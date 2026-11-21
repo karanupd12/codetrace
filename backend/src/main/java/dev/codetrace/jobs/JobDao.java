@@ -51,6 +51,10 @@ public class JobDao {
         return "GRAPH:" + repositoryId + ":" + commitHash + ":" + parserVersion + ":" + builderVersion;
     }
 
+    public static String impactKey(UUID repositoryId, UUID baseSnapshot, UUID headSnapshot, String algorithmVersion, int depth) {
+        return "IMPACT:" + repositoryId + ":" + baseSnapshot + ":" + headSnapshot + ":" + algorithmVersion + ":" + depth;
+    }
+
     public static String syncKey(UUID repositoryId) {
         return "SYNC:" + repositoryId;
     }
