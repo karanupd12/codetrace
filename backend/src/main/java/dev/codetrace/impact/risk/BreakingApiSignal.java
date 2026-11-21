@@ -37,8 +37,7 @@ public class BreakingApiSignal implements RiskSignal {
                 if (p > points) {
                     points = p;
                     reason = (exposed ? "Public/protected " : "") + "symbol " + c.base().qualifiedName()
-                            + c.base().signature() + " was removed or its signature changed; " + c.directDependents()
-                            + " direct dependent(s).";
+                            + " was removed or its signature changed; " + c.directDependents() + " direct dependent(s).";
                 }
             } else if (c.kind() == Kind.MODIFIED && c.head() != null && isExposed(c.base().modifiers())
                     && !isExposed(c.head().modifiers()) && points < 15) {
