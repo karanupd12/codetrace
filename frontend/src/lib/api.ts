@@ -35,7 +35,7 @@ export type Repository = {
 export type Job = {
   id: string;
   repositoryId: string;
-  operation: "SYNC" | "INDEX" | "GRAPH_BUILD";
+  operation: "SYNC" | "INDEX" | "GRAPH_BUILD" | "IMPACT";
   status: JobStatus;
   commitHash: string | null;
   attempts: number;
@@ -248,6 +248,95 @@ export const getSubgraph = (
   });
   return request<Subgraph>(`/api/v1/snapshots/${snapshotId}/graph?${qs}`, undefined, signal);
 };
+
+// ---- change impact ----
+
+export type ReportStatus = "REQUESTED" | "RUNNING" | "COMPLETED" | "FAILED";
+export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type RiskFactor = { signal: string; points: number; maxPoints: number; reason: string };
+
+export type ImpactReport = {
+  id: string;
+  repositoryId: string;
+  baseCommit: string;
+  headCommit: string;
+  baseSnapshotId: string;
+  headSnapshotId: string;
+  algorithmVersion: string;
+  depth: number;
+  status: ReportStatus;
+  riskScore: number | null;
+  riskLevel: RiskLevel | null;
+  riskFactors: RiskFactor[];
+  changedCount: number | null;
+  affectedCount: number | null;
+  testsAffectedCount: number | null;
+  possibleCount: number | null;
+  unmappedHunks: number | null;
+  nonJavaFiles: number | null;
+  truncated: boolean | null;
+  failureReason: string | null;
+  createdAt: string;
+  completedAt: string | null;
+};
+
+export type Hop = {
+  from: string;
+  to: string;
+  edgeType: EdgeType;
+  resolution: Resolution;
+  confidence: number;
+  path: string;
+  line: number;
+};
+
+export type FindingType = "CHANGED" | "AFFECTED" | "POSSIBLE";
+
+export type Finding = {
+  findingType: FindingType;
+  ordinal: number;
+  name: string;
+  nodeType: string;
+  path: string;
+  line: number;
+  module: string;
+  test: boolean;
+  changeKind: "ADDED" | "MODIFIED" | "REMOVED" | null;
+  directDependents: number | null;
+  distance: number | null;
+  certain: boolean | null;
+  confidence: number | null;
+  changedSymbol: string;
+  chain: Hop[];
+};
+
+export const reportInProgress = (s: ReportStatus) => s === "REQUESTED" || s === "RUNNING";
+
+export const requestImpactReport = (repoId: string, baseCommit: string, headCommit: string, depth?: number) =>
+  post<{ report: ImpactReport; job: Job }>(`/api/v1/repositories/${repoId}/impact-reports`, {
+    baseCommit,
+    headCommit,
+    ...(depth ? { depth } : {}),
+  });
+
+export const listImpactReports = (repoId: string, signal?: AbortSignal) =>
+  request<ImpactReport[]>(`/api/v1/repositories/${repoId}/impact-reports`, undefined, signal);
+
+export const getImpactReport = (id: string, signal?: AbortSignal) =>
+  request<ImpactReport>(`/api/v1/impact-reports/${id}`, undefined, signal);
+
+export const listFindings = (
+  reportId: string,
+  p: { type?: FindingType; module?: string; limit: number; offset: number },
+  signal?: AbortSignal,
+) => {
+  const qs = new URLSearchParams({ limit: String(p.limit), offset: String(p.offset) });
+  if (p.type) qs.set("type", p.type);
+  if (p.module) qs.set("module", p.module);
+  return request<Page<Finding>>(`/api/v1/impact-reports/${reportId}/findings?${qs}`, undefined, signal);
+};
+
+export const reportMarkdownUrl = (reportId: string) => `${API_BASE_URL}/api/v1/impact-reports/${reportId}/report.md`;
 
 // ---- symbols ----
 

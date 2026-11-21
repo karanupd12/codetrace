@@ -6,10 +6,12 @@ import { useState } from "react";
 import {
   getRepository,
   isActive,
+  listImpactReports,
   listJobs,
   listRevisions,
   listSnapshots,
   requestGraphBuild,
+  reportInProgress,
   requestIndex,
   resync,
   snapshotInProgress,
@@ -19,6 +21,7 @@ import {
 import { usePoll } from "@/lib/usePoll";
 import styles from "../../page.module.css";
 import GraphExplorer from "./GraphExplorer";
+import ImpactPanel from "./ImpactPanel";
 import SymbolBrowser from "./SymbolBrowser";
 
 const short = (h: string | null) => (h ? h.slice(0, 7) : "—");
@@ -39,19 +42,21 @@ export default function RepoPage() {
 
   const { data, error, reload } = usePoll(
     async (signal) => {
-      const [repo, jobs, snapshots] = await Promise.all([
+      const [repo, jobs, snapshots, reports] = await Promise.all([
         getRepository(id, signal),
         listJobs(id, signal),
         listSnapshots(id, signal),
+        listImpactReports(id, signal),
       ]);
       const revisions = repo.syncStatus === "SYNCED" ? await listRevisions(id, signal) : [];
-      return { repo, jobs, snapshots, revisions };
+      return { repo, jobs, snapshots, reports, revisions };
     },
     2000,
     (d) =>
       d.repo.syncStatus === "PENDING" ||
       d.jobs.some((j) => isActive(j.status)) ||
-      d.snapshots.some((s) => snapshotInProgress(s.status)),
+      d.snapshots.some((s) => snapshotInProgress(s.status)) ||
+      d.reports.some((r) => reportInProgress(r.status)),
   );
 
   async function act(fn: () => Promise<unknown>) {
@@ -80,7 +85,7 @@ export default function RepoPage() {
     );
   }
 
-  const { repo, jobs, snapshots, revisions } = data;
+  const { repo, jobs, snapshots, reports, revisions } = data;
   const indexJobs = jobs.filter((j) => j.operation === "INDEX");
   const latestDone = indexJobs.find((j) => j.status === "SUCCEEDED");
   const activeJobId = selectedJob ?? latestDone?.id ?? null;
@@ -181,6 +186,16 @@ export default function RepoPage() {
             ))}
           </ul>
         </section>
+      )}
+
+      {repo.syncStatus === "SYNCED" && (
+        <ImpactPanel
+          repoId={id}
+          revisions={revisions}
+          graphed={new Set(published.map((s) => s.commitHash))}
+          reports={reports}
+          onRequested={reload}
+        />
       )}
 
       {explored && <GraphExplorer key={explored.id} snapshot={explored} />}
