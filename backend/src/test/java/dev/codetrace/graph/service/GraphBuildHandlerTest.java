@@ -26,9 +26,9 @@ import dev.codetrace.graph.repository.GraphSnapshotRepository.Created;
 import dev.codetrace.graph.repository.GraphSnapshotRepository.Snapshot;
 import dev.codetrace.jobs.JobFailureException;
 import dev.codetrace.jobs.JobFailureException.Category;
-import dev.codetrace.jobs.repository.JobRepository;
-import dev.codetrace.jobs.repository.JobRepository.IndexedRevision;
-import dev.codetrace.jobs.repository.JobRepository.Job;
+import dev.codetrace.jobs.service.JobService;
+import dev.codetrace.jobs.model.IndexedRevision;
+import dev.codetrace.jobs.model.Job;
 import dev.codetrace.ingestion.parser.JavaSymbolExtractor;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -48,7 +48,7 @@ class GraphBuildHandlerTest {
     private final UUID indexJobId = UUID.randomUUID();
     private final UUID snapshotId = UUID.randomUUID();
 
-    private JobRepository jobs;
+    private JobService jobs;
     private GraphSnapshotRepository snapshots;
     private GraphInputRepository loader;
     private GraphWriteRepository writer;
@@ -59,7 +59,7 @@ class GraphBuildHandlerTest {
 
     @BeforeEach
     void setUp() {
-        jobs = mock(JobRepository.class);
+        jobs = mock(JobService.class);
         snapshots = mock(GraphSnapshotRepository.class);
         loader = mock(GraphInputRepository.class);
         writer = mock(GraphWriteRepository.class);

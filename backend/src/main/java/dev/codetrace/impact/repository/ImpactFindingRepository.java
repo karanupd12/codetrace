@@ -1,8 +1,7 @@
 package dev.codetrace.impact.repository;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.codetrace.common.util.JsonCodec;
 import dev.codetrace.impact.model.ImpactAnalysis.Hop;
 import dev.codetrace.impact.service.ImpactReportService.Finding;
 import dev.codetrace.common.web.Page;
@@ -23,9 +22,12 @@ public class ImpactFindingRepository {
             + " and (cast(:module as text) is null or module = :module)";
 
     private final JdbcClient jdbc;
-    private final ObjectMapper json;
+    private static final TypeReference<List<Hop>> HOPS = new TypeReference<>() {
+    };
 
-    public ImpactFindingRepository(JdbcClient jdbc, ObjectMapper json) {
+    private final JsonCodec json;
+
+    public ImpactFindingRepository(JdbcClient jdbc, JsonCodec json) {
         this.jdbc = jdbc;
         this.json = json;
     }
@@ -47,16 +49,7 @@ public class ImpactFindingRepository {
     }
 
     private Finding map(ResultSet rs, int i) throws SQLException {
-        String chain = rs.getString("chain");
-        List<Hop> hops = List.of();
-        if (chain != null) {
-            try {
-                hops = json.readValue(chain, new TypeReference<List<Hop>>() {
-                });
-            } catch (JsonProcessingException e) {
-                throw new SQLException("Stored evidence chain is unreadable.", e);
-            }
-        }
+        List<Hop> hops = json.read(rs.getString("chain"), HOPS, List.of());
         java.math.BigDecimal conf = rs.getBigDecimal("confidence");
         return new Finding(rs.getString("finding_type"), rs.getInt("ordinal"), rs.getString("name"),
                 rs.getString("node_type"), rs.getString("path"), rs.getInt("line"), rs.getString("module"),

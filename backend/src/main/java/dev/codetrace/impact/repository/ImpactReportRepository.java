@@ -1,5 +1,6 @@
 package dev.codetrace.impact.repository;
 
+import dev.codetrace.common.util.Texts;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
@@ -79,7 +80,7 @@ public class ImpactReportRepository {
 
     public void markFailed(UUID id, String reason) {
         jdbc.sql("update impact_report set status = 'FAILED', failure_reason = :why where id = :id and status <> 'COMPLETED'")
-                .param("id", id).param("why", reason.length() > 300 ? reason.substring(0, 300) : reason).update();
+                .param("id", id).param("why", Texts.truncate(reason, 300)).update();
     }
 
     /** A failed report whose job is queued again. */

@@ -11,8 +11,9 @@ import dev.codetrace.impact.risk.RiskAssessor.RiskAssessment;
 import dev.codetrace.ingestion.git.GitSourceManager;
 import dev.codetrace.jobs.JobFailureException;
 import dev.codetrace.jobs.JobFailureException.Category;
-import dev.codetrace.jobs.repository.JobRepository.Job;
+import dev.codetrace.jobs.model.Job;
 import dev.codetrace.jobs.JobHandler;
+import dev.codetrace.jobs.model.JobOperation;
 import dev.codetrace.source.repository.SourceRepositoryRepository;
 import dev.codetrace.source.repository.SourceRepositoryRepository.Repo;
 import org.eclipse.jgit.lib.Repository;
@@ -30,7 +31,6 @@ import org.springframework.stereotype.Component;
 @Component
 @Profile("worker")
 public class ImpactJobHandler implements JobHandler {
-    public static final String OPERATION = "IMPACT";
     private static final Logger log = LoggerFactory.getLogger(ImpactJobHandler.class);
 
     private final ImpactReportRepository reports;
@@ -53,8 +53,8 @@ public class ImpactJobHandler implements JobHandler {
     }
 
     @Override
-    public String operation() {
-        return OPERATION;
+    public JobOperation operation() {
+        return JobOperation.IMPACT;
     }
 
     @Override
@@ -78,8 +78,7 @@ public class ImpactJobHandler implements JobHandler {
         } catch (DataAccessException e) {
             throw e; // infrastructure fault: the retried job recomputes
         } catch (RuntimeException e) {
-            String reason = e instanceof JobFailureException ie ? ie.getMessage()
-                    : "Unexpected error (" + e.getClass().getSimpleName() + ").";
+            String reason = JobFailureException.safeReason(e);
             reports.markFailed(report.id(), reason);
             throw e;
         }

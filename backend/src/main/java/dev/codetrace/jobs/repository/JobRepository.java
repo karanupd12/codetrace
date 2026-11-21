@@ -1,5 +1,8 @@
 package dev.codetrace.jobs.repository;
 
+import dev.codetrace.common.util.Texts;
+import dev.codetrace.jobs.model.IndexedRevision;
+import dev.codetrace.jobs.model.Job;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
@@ -13,12 +16,6 @@ import org.springframework.stereotype.Repository;
 /** Durable job state. PostgreSQL is authoritative; Redis messages only say "look at job X". */
 @Repository
 public class JobRepository {
-    public record Job(UUID id, UUID repositoryId, String operation, String status, String commitHash, int attempts,
-                      String errorCategory, String errorMessage, OffsetDateTime createdAt, OffsetDateTime startedAt,
-                      OffsetDateTime finishedAt, Integer filesParsed, Integer filesSkipped, Integer symbolsExtracted,
-                      String parserVersion) {
-    }
-
     public record Created(Job job, boolean created) {
     }
 
@@ -32,10 +29,6 @@ public class JobRepository {
         this.jdbc = jdbc;
     }
 
-    /** The finished INDEX job whose stored facts a graph build for this commit reads. */
-    public record IndexedRevision(UUID jobId, String parserVersion, Integer extractionVersion) {
-    }
-
     public Optional<IndexedRevision> findSucceededIndex(UUID repositoryId, String commitHash) {
         return jdbc.sql("""
                 select id, parser_version, extraction_version from index_job
@@ -45,22 +38,6 @@ public class JobRepository {
                 .query((rs, i) -> new IndexedRevision(rs.getObject("id", UUID.class), rs.getString("parser_version"),
                         rs.getObject("extraction_version", Integer.class)))
                 .optional();
-    }
-
-    public static String graphKey(UUID repositoryId, String commitHash, String parserVersion, String builderVersion) {
-        return "GRAPH:" + repositoryId + ":" + commitHash + ":" + parserVersion + ":" + builderVersion;
-    }
-
-    public static String impactKey(UUID repositoryId, UUID baseSnapshot, UUID headSnapshot, String algorithmVersion, int depth) {
-        return "IMPACT:" + repositoryId + ":" + baseSnapshot + ":" + headSnapshot + ":" + algorithmVersion + ":" + depth;
-    }
-
-    public static String syncKey(UUID repositoryId) {
-        return "SYNC:" + repositoryId;
-    }
-
-    public static String indexKey(UUID repositoryId, String commitHash) {
-        return "INDEX:" + repositoryId + ":" + commitHash;
     }
 
     /** Idempotent create: the same idempotency key always yields the same job row. */
@@ -127,7 +104,7 @@ public class JobRepository {
     public void markForRetry(UUID id, String category, String message) {
         jdbc.sql("""
                 update index_job set status = 'QUEUED', error_category = :c, error_message = :m, updated_at = now()
-                where id = :id""").param("id", id).param("c", category).param("m", truncate(message)).update();
+                where id = :id""").param("id", id).param("c", category).param("m", Texts.truncate(message, 500)).update();
     }
 
     /** QUEUED jobs untouched for a while: touch them and return their ids so they can be republished. */
@@ -145,12 +122,7 @@ public class JobRepository {
         jdbc.sql("""
                 update index_job set status = :s, error_category = :c, error_message = :m, finished_at = now(),
                     updated_at = now() where id = :id""")
-                .param("id", id).param("s", status).param("c", category).param("m", truncate(message)).update();
-    }
-
-    private static String truncate(String s) {
-        if (s == null) return "";
-        return s.length() <= 500 ? s : s.substring(0, 500);
+                .param("id", id).param("s", status).param("c", category).param("m", Texts.truncate(message, 500)).update();
     }
 
     private static Job map(ResultSet rs, int i) throws SQLException {

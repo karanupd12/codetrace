@@ -1,5 +1,6 @@
 package dev.codetrace.graph.engine;
 
+import dev.codetrace.common.util.JavaSignatures;
 import dev.codetrace.graph.model.GraphModel.ImportFact;
 import dev.codetrace.graph.model.GraphModel.Node;
 import dev.codetrace.graph.model.GraphModel.RefFact;
@@ -124,9 +125,9 @@ final class CallResolver {
             for (Node t : level) {
                 if (!seen.add(t.id())) continue;
                 for (Node m : index.methodsOf(t)) {
-                    if (!methodName(m).equals(name)) continue;
+                    if (!JavaSignatures.methodName(m.signature()).equals(name)) continue;
                     names++;
-                    if (arityAccepts(m, argc)) exact.add(m); else otherArity = true;
+                    if (JavaSignatures.accepts(m.signature(), argc)) exact.add(m); else otherArity = true;
                 }
                 incomplete |= index.incompleteSupertypes.contains(t.id());
                 next.addAll(index.supertypesOf(t));
@@ -156,9 +157,9 @@ final class CallResolver {
     private Outcome constructor(Node type, int argc, Node excludeSelf, String prefix, String dstName) {
         List<Node> ctors = new ArrayList<>();
         for (Node m : index.methodsOf(type)) {
-            if (methodName(m).equals("<init>") && (excludeSelf == null || !m.id().equals(excludeSelf.id()))) ctors.add(m);
+            if (JavaSignatures.methodName(m.signature()).equals("<init>") && (excludeSelf == null || !m.id().equals(excludeSelf.id()))) ctors.add(m);
         }
-        List<Node> exact = ctors.stream().filter(c -> arityAccepts(c, argc)).toList();
+        List<Node> exact = ctors.stream().filter(c -> JavaSignatures.accepts(c.signature(), argc)).toList();
         if (exact.isEmpty()) {
             if (implicitConstructorCovers(type, argc, ctors)) return null; // implicit default / canonical record ctor
             return unresolved(ctors.isEmpty() ? "METHOD_NOT_FOUND" : "ARITY_MISMATCH", dstName, prefix + "NOT_FOUND");
@@ -190,38 +191,5 @@ final class CallResolver {
 
     private static Outcome unresolved(String reason, String dstName, String evidenceKind) {
         return new Outcome(Resolution.UNRESOLVED, List.of(), evidenceKind, 0.0, reason, dstName);
-    }
-
-    static String methodName(Node m) {
-        String sig = m.signature();
-        int p = sig.indexOf('(');
-        return p < 0 ? sig : sig.substring(0, p);
-    }
-
-    /** Parameter list of a signature like {@code put(Map<String,List<Integer>>,int...)}, split at top-level commas. */
-    static List<String> parameters(String signature) {
-        int open = signature.indexOf('(');
-        int close = signature.lastIndexOf(')');
-        if (open < 0 || close <= open + 1) return List.of();
-        List<String> out = new ArrayList<>();
-        int depth = 0;
-        int start = open + 1;
-        for (int i = open + 1; i < close; i++) {
-            char c = signature.charAt(i);
-            if (c == '<') depth++;
-            else if (c == '>') depth--;
-            else if (c == ',' && depth == 0) {
-                out.add(signature.substring(start, i));
-                start = i + 1;
-            }
-        }
-        out.add(signature.substring(start, close));
-        return out;
-    }
-
-    static boolean arityAccepts(Node m, int argc) {
-        List<String> params = parameters(m.signature());
-        if (params.size() == argc) return true;
-        return !params.isEmpty() && params.get(params.size() - 1).endsWith("...") && argc >= params.size() - 1;
     }
 }

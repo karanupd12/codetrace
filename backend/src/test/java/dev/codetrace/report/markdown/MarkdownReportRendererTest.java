@@ -177,6 +177,6 @@ class MarkdownReportRendererTest {
         assertThat(MarkdownText.code("x".repeat(500))).hasSize(202); // 199 chars + ellipsis + two backticks
         assertThat(MarkdownText.plain("a`b\nc")).isEqualTo("a'b c");
         assertThat(MarkdownText.cell("a|b\nc")).isEqualTo("a\\|b c");
-        assertThat(MarkdownText.shortHash("0123456789")).isEqualTo("0123456");
+        assertThat(dev.codetrace.common.util.Commits.shortHash("0123456789")).isEqualTo("0123456");
     }
 }

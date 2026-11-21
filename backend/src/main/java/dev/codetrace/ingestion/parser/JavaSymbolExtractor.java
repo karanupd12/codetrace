@@ -1,5 +1,6 @@
 package dev.codetrace.ingestion.parser;
 
+import dev.codetrace.common.util.Texts;
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ParseResult;
 import com.github.javaparser.ParserConfiguration;
@@ -442,6 +443,6 @@ public final class JavaSymbolExtractor {
     private static String truncate(String s) {
         if (s == null) return "";
         String oneLine = s.replace('\r', ' ').replace('\n', ' ');
-        return oneLine.length() <= MAX_MESSAGE ? oneLine : oneLine.substring(0, MAX_MESSAGE);
+        return Texts.truncate(oneLine, MAX_MESSAGE);
     }
 }

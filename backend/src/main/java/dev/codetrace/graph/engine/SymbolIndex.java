@@ -112,10 +112,5 @@ final class SymbolIndex {
     List<Node> supertypesOf(Node type) {
         return supertypes.getOrDefault(type.id(), List.of());
     }
-
-    /** Source root of a file: the part of the path before {@code src/}, or "" for single-module layouts. */
-    static String moduleOf(String path) {
-        int i = path.indexOf("/src/");
-        return i >= 0 ? path.substring(0, i) : "";
-    }
 }
+

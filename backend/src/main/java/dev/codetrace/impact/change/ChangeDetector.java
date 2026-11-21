@@ -1,5 +1,6 @@
 package dev.codetrace.impact.change;
 
+import dev.codetrace.common.util.Commits;
 import dev.codetrace.impact.change.ChangeSet.ChangeType;
 import dev.codetrace.impact.change.ChangeSet.FileChange;
 import dev.codetrace.impact.change.ChangeSet.Hunk;
@@ -131,7 +132,7 @@ public class ChangeDetector {
     }
 
     private static CanonicalTreeParser tree(Repository repo, RevWalk walk, String commit) throws IOException {
-        String shortName = commit.substring(0, Math.min(7, commit.length()));
+        String shortName = Commits.shortHash(commit);
         RevCommit c;
         try {
             ObjectId id = repo.resolve(commit + "^{commit}");

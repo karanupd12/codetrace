@@ -1,7 +1,8 @@
 package dev.codetrace.jobs;
 
+import dev.codetrace.jobs.model.JobOperation;
 import dev.codetrace.jobs.service.JobProcessor;
-import dev.codetrace.jobs.repository.JobRepository.Job;
+import dev.codetrace.jobs.model.Job;
 
 /**
  * Extension point for background work. One implementation per job operation; {@link JobProcessor} dispatches by
@@ -13,7 +14,7 @@ import dev.codetrace.jobs.repository.JobRepository.Job;
  */
 public interface JobHandler {
     /** The {@code index_job.operation} value this handler owns, e.g. {@code SYNC}. */
-    String operation();
+    JobOperation operation();
 
     void handle(Job job);
 

@@ -2,7 +2,7 @@ package dev.codetrace.graph.controller;
 
 import dev.codetrace.graph.service.GraphSnapshotService;
 import dev.codetrace.graph.repository.GraphSnapshotRepository.Snapshot;
-import dev.codetrace.source.controller.SourceRepositoryController.JobView;
+import dev.codetrace.jobs.controller.dto.JobResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
 import java.time.OffsetDateTime;
@@ -37,7 +37,7 @@ public class GraphSnapshotController {
         }
     }
 
-    public record BuildView(SnapshotView snapshot, JobView job) {
+    public record BuildView(SnapshotView snapshot, JobResponse job) {
     }
 
     private final GraphSnapshotService service;
@@ -50,7 +50,7 @@ public class GraphSnapshotController {
     @ResponseStatus(HttpStatus.ACCEPTED)
     public BuildView build(@PathVariable UUID id, @Valid @RequestBody(required = false) BuildRequest req) {
         GraphSnapshotService.Requested r = service.requestBuild(id, req == null ? null : req.commitHash());
-        return new BuildView(SnapshotView.of(r.snapshot()), JobView.of(r.job()));
+        return new BuildView(SnapshotView.of(r.snapshot()), JobResponse.from(r.job()));
     }
 
     @GetMapping("/repositories/{id}/snapshots")

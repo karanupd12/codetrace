@@ -1,5 +1,6 @@
 package dev.codetrace.report.controller;
 
+import dev.codetrace.common.util.Commits;
 import dev.codetrace.report.markdown.MarkdownReportRenderer;
 import dev.codetrace.report.markdown.MarkdownText;
 import dev.codetrace.report.markdown.ReportData;
@@ -50,7 +51,7 @@ public class ReportController {
                 all.stream().filter(f -> f.findingType().equals("CHANGED")).toList(),
                 all.stream().filter(f -> f.findingType().equals("AFFECTED")).toList(),
                 all.stream().filter(f -> f.findingType().equals("POSSIBLE")).toList());
-        String filename = "impact-" + MarkdownText.shortHash(report.baseCommit()) + "-" + MarkdownText.shortHash(report.headCommit()) + ".md";
+        String filename = "impact-" + Commits.shortHash(report.baseCommit()) + "-" + Commits.shortHash(report.headCommit()) + ".md";
         return ResponseEntity.ok()
                 .contentType(MARKDOWN)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")

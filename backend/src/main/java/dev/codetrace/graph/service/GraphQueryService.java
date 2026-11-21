@@ -1,5 +1,6 @@
 package dev.codetrace.graph.service;
 
+import dev.codetrace.common.util.Bounds;
 import dev.codetrace.graph.repository.GraphQueryRepository;
 import dev.codetrace.config.GraphProperties;
 import dev.codetrace.graph.repository.GraphQueryRepository.Degree;
@@ -61,7 +62,7 @@ public class GraphQueryService {
             throw ApiException.badRequest("type must be one of " + String.join(", ", new java.util.TreeSet<>(NODE_TYPES)) + ".");
         }
         return dao.searchNodes(snapshot, type == null ? null : type.toUpperCase(), blankToNull(q), blankToNull(path),
-                clampLimit(limit), Math.max(0, offset));
+                clampLimit(limit), Bounds.offset(offset));
     }
 
     public NodeDetail node(UUID snapshot, UUID nodeId) {
@@ -72,7 +73,7 @@ public class GraphQueryService {
     public Page<EdgeView> edges(UUID snapshot, UUID nodeId, String direction, String types, String states, int limit, int offset) {
         requireNode(snapshot, nodeId);
         return dao.edgesOf(snapshot, nodeId, direction(direction, Direction.BOTH), parseSet(types, ALL_TYPES, ALL_TYPES, "types"),
-                parseSet(states, ALL_STATES, ALL_STATES, "states"), clampLimit(limit), Math.max(0, offset));
+                parseSet(states, ALL_STATES, ALL_STATES, "states"), clampLimit(limit), Bounds.offset(offset));
     }
 
     // ---- neighbourhood ------------------------------------------------------------------------------------------------
@@ -80,7 +81,7 @@ public class GraphQueryService {
     /** Breadth-first subgraph around {@code center}, at most {@code depth} hops and {@code maxQueryResults} edges. */
     public Subgraph neighborhood(UUID snapshot, UUID center, int depth, String direction, String types, String states, int limit) {
         requireNode(snapshot, center);
-        int maxDepth = Math.max(1, Math.min(depth, props.maxDepth()));
+        int maxDepth = Bounds.clamp(depth, 1, props.maxDepth());
         int maxEdges = clampLimit(limit);
         Direction dir = direction(direction, Direction.BOTH);
         Set<String> typeSet = parseSet(types, DEFAULT_TYPES, ALL_TYPES, "types");
@@ -119,8 +120,8 @@ public class GraphQueryService {
                             String types, String states) {
         requireNode(snapshot, from);
         requireNode(snapshot, to);
-        int maxDepth = Math.max(1, Math.min(maxDepthParam, props.maxPathDepth()));
-        int wanted = Math.max(1, Math.min(limitPaths, 20));
+        int maxDepth = Bounds.clamp(maxDepthParam, 1, props.maxPathDepth());
+        int wanted = Bounds.limit(limitPaths, 20);
         Direction dir = direction(direction, Direction.OUT);
         if (dir == Direction.BOTH) throw ApiException.badRequest("direction must be OUT or IN for path queries.");
         Set<String> typeSet = parseSet(types, DEFAULT_TYPES, ALL_TYPES, "types");
@@ -196,7 +197,7 @@ public class GraphQueryService {
     }
 
     private int clampLimit(int limit) {
-        return Math.max(1, Math.min(limit, props.maxQueryResults()));
+        return Bounds.limit(limit, props.maxQueryResults());
     }
 
     private static Direction direction(String value, Direction fallback) {

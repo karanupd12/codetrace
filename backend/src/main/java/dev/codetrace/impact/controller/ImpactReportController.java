@@ -4,7 +4,7 @@ import dev.codetrace.impact.service.ImpactReportService;
 import dev.codetrace.impact.repository.ImpactReportRepository.Report;
 import dev.codetrace.impact.service.ImpactReportService.Finding;
 import dev.codetrace.impact.risk.RiskSignal.RiskFactor;
-import dev.codetrace.source.controller.SourceRepositoryController.JobView;
+import dev.codetrace.jobs.controller.dto.JobResponse;
 import dev.codetrace.common.web.Page;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -41,7 +41,7 @@ public class ImpactReportController {
                              Boolean truncated, String failureReason, OffsetDateTime createdAt, OffsetDateTime completedAt) {
     }
 
-    public record RequestedView(ReportView report, JobView job) {
+    public record RequestedView(ReportView report, JobResponse job) {
     }
 
     private final ImpactReportService service;
@@ -54,7 +54,7 @@ public class ImpactReportController {
     @ResponseStatus(HttpStatus.ACCEPTED)
     public RequestedView request(@PathVariable UUID id, @Valid @RequestBody ReportRequest req) {
         ImpactReportService.Requested r = service.request(id, req.baseCommit(), req.headCommit(), req.depth());
-        return new RequestedView(view(r.report()), JobView.of(r.job()));
+        return new RequestedView(view(r.report()), JobResponse.from(r.job()));
     }
 
     @GetMapping("/repositories/{id}/impact-reports")

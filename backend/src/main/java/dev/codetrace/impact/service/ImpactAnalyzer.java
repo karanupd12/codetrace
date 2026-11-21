@@ -1,5 +1,8 @@
 package dev.codetrace.impact.service;
 
+import dev.codetrace.common.util.Bounds;
+import dev.codetrace.common.util.JavaSignatures;
+import dev.codetrace.common.util.SourcePaths;
 import dev.codetrace.impact.engine.BlastRadiusCalculator;
 import dev.codetrace.impact.model.ImpactAnalysis;
 import dev.codetrace.impact.repository.ImpactGraphRepository;
@@ -99,7 +102,7 @@ public class ImpactAnalyzer {
 
     private int clampDepth(Integer requested) {
         int d = requested == null ? limits.defaultDepth() : requested;
-        return Math.max(1, Math.min(d, limits.maxDepth()));
+        return Bounds.clamp(d, 1, limits.maxDepth());
     }
 
     private List<AffectedSymbol> describe(UUID snapshot, List<Affected> found, Map<UUID, ChangedSymbol> seeds) {
@@ -112,7 +115,7 @@ public class ImpactAnalyzer {
             ChangedSymbol seed = seeds.get(a.seedId());
             List<Hop> chain = a.path().stream().map(ImpactAnalyzer::hop).toList();
             out.add(new AffectedSymbol(n.id(), n.nodeType(), n.qualifiedName(), n.signature(), n.path(), n.startLine(),
-                    ImpactAnalysis.moduleOf(n.path()), ImpactAnalysis.isTestPath(n.path()), a.distance(), a.certain(),
+                    SourcePaths.displayModule(n.path()), SourcePaths.isTestPath(n.path()), a.distance(), a.certain(),
                     a.confidence(), seed == null ? "" : seed.base().qualifiedName(), chain));
         }
         out.sort(Comparator.comparingInt(AffectedSymbol::distance).thenComparing(AffectedSymbol::qualifiedName)
@@ -141,7 +144,7 @@ public class ImpactAnalyzer {
             String name = hash < 0 ? b.qualifiedName()
                     : b.qualifiedName().substring(hash + 1, paren < 0 ? b.qualifiedName().length() : paren);
             if (name.equals("<init>")) continue;
-            int[] arity = arityRange(b.signature());
+            int[] arity = JavaSignatures.arityRange(b.signature());
             changedByName.computeIfAbsent(name, k -> new ArrayList<>()).add(new ChangedMethod(b.qualifiedName(), arity[0], arity[1]));
         }
         Set<UUID> known = new LinkedHashSet<>(seeds.keySet());
@@ -153,24 +156,5 @@ public class ImpactAnalyzer {
                     .ifPresent(m -> out.add(new PossibleDependent(u.nodeId(), u.qualifiedName(), u.path(), u.line(), m.qualifiedName())));
         }
         return List.copyOf(out);
-    }
-
-    /**
-     * Minimum and maximum number of arguments a method with this signature accepts: {@code "(int,Map<K,V>)"} is 2 to
-     * 2, {@code "(String,int...)"} is 1 and up. Commas inside generic type arguments do not separate parameters.
-     */
-    static int[] arityRange(String signature) {
-        int open = signature.indexOf('(');
-        int close = signature.lastIndexOf(')');
-        String inner = open < 0 || close < open ? "" : signature.substring(open + 1, close).trim();
-        if (inner.isEmpty()) return new int[] {0, 0};
-        int params = 1;
-        int depth = 0;
-        for (char ch : inner.toCharArray()) {
-            if (ch == '<' || ch == '(') depth++;
-            else if (ch == '>' || ch == ')') depth--;
-            else if (ch == ',' && depth == 0) params++;
-        }
-        return inner.endsWith("...") ? new int[] {params - 1, Integer.MAX_VALUE} : new int[] {params, params};
     }
 }

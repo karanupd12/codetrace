@@ -1,5 +1,6 @@
 package dev.codetrace.impact.risk;
 
+import dev.codetrace.common.util.SourcePaths;
 import dev.codetrace.impact.model.ImpactAnalysis;
 import java.util.Set;
 import java.util.TreeSet;
@@ -21,8 +22,8 @@ public class ModuleSpreadSignal implements RiskSignal {
     @Override
     public RiskFactor evaluate(ImpactAnalysis a) {
         Set<String> modules = new TreeSet<>();
-        a.changed().stream().filter(c -> !ImpactAnalysis.isTestPath(c.any().path()))
-                .forEach(c -> modules.add(ImpactAnalysis.moduleOf(c.any().path())));
+        a.changed().stream().filter(c -> !SourcePaths.isTestPath(c.any().path()))
+                .forEach(c -> modules.add(SourcePaths.displayModule(c.any().path())));
         a.affected().stream().filter(x -> !x.test()).forEach(x -> modules.add(x.module()));
         int points = Math.min(maxPoints(), 5 * Math.max(0, modules.size() - 1));
         return new RiskFactor(id(), points, maxPoints(),

@@ -6,7 +6,7 @@ import dev.codetrace.jobs.repository.JobRepository;
 import dev.codetrace.config.IngestionProperties;
 import dev.codetrace.jobs.JobFailureException;
 import dev.codetrace.jobs.JobFailureException.Category;
-import dev.codetrace.jobs.repository.JobRepository.Job;
+import dev.codetrace.jobs.model.Job;
 import dev.codetrace.common.web.ApiException;
 import java.util.HashMap;
 import java.util.List;
@@ -41,7 +41,7 @@ public class JobProcessor {
         this.publisher = publisher;
         this.props = props;
         for (JobHandler h : handlerBeans) {
-            if (handlers.put(h.operation(), h) != null) {
+            if (handlers.put(h.operation().name(), h) != null) {
                 throw new IllegalStateException("Duplicate job handler for operation " + h.operation());
             }
         }
@@ -75,7 +75,7 @@ public class JobProcessor {
         } catch (RuntimeException e) {
             // Only the type is recorded: exception messages may contain paths or repository content.
             log.warn("job {} failed unexpectedly: {}", job.id(), e.getClass().getName());
-            handleFailure(job, handler, Category.INTERNAL, "Unexpected error (" + e.getClass().getSimpleName() + ").", true);
+            handleFailure(job, handler, Category.INTERNAL, JobFailureException.safeReason(e), true);
         }
     }
 

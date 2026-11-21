@@ -5,7 +5,7 @@ import dev.codetrace.ingestion.git.RevisionDiscovery;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import dev.codetrace.jobs.repository.JobRepository.Job;
+import dev.codetrace.jobs.model.Job;
 import dev.codetrace.source.repository.SourceRepositoryRepository;
 import java.time.OffsetDateTime;
 import java.util.UUID;

@@ -1,5 +1,6 @@
 package dev.codetrace.symbols.repository;
 
+import dev.codetrace.common.util.SqlLike;
 import dev.codetrace.common.web.Page;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,7 +45,7 @@ public class SymbolRepository {
             select = select.param("kind", kind.toUpperCase());
         }
         if (query != null && !query.isBlank()) {
-            String pattern = "%" + escapeLike(query.toLowerCase()) + "%";
+            String pattern = SqlLike.contains(query.toLowerCase());
             count = count.param("q", pattern);
             select = select.param("q", pattern);
         }
@@ -69,9 +70,5 @@ public class SymbolRepository {
                 .query((rs, i) -> new DiagnosticView(rs.getString("path"), rs.getString("severity"),
                         rs.getString("code"), rs.getString("message"), rs.getInt("line"))).list();
         return new Page<>(items, lim, off, total);
-    }
-
-    private static String escapeLike(String s) {
-        return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 }

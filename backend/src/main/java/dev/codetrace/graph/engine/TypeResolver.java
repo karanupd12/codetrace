@@ -1,5 +1,6 @@
 package dev.codetrace.graph.engine;
 
+import dev.codetrace.common.util.SourcePaths;
 import dev.codetrace.graph.model.GraphModel.Node;
 import dev.codetrace.graph.model.GraphModel.Resolution;
 import dev.codetrace.graph.engine.SymbolIndex.FileContext;
@@ -125,8 +126,8 @@ final class TypeResolver {
         if (all.size() == 1) {
             return new Resolved(Resolution.RESOLVED, all, kind, conf, "", all.get(0).qualifiedName());
         }
-        String module = SymbolIndex.moduleOf(ctx.path());
-        List<Node> sameModule = all.stream().filter(n -> SymbolIndex.moduleOf(n.path()).equals(module)).toList();
+        String module = SourcePaths.moduleOf(ctx.path());
+        List<Node> sameModule = all.stream().filter(n -> SourcePaths.moduleOf(n.path()).equals(module)).toList();
         if (sameModule.size() == 1) {
             return new Resolved(Resolution.RESOLVED, sameModule, kind + "+SAME_MODULE", conf * 0.9, "",
                     sameModule.get(0).qualifiedName());

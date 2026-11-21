@@ -32,4 +32,9 @@ public class JobFailureException extends RuntimeException {
     public Category category() {
         return category;
     }
+
+    /** A message safe to store for any failure: the categorised message, or only the type of an unexpected error. */
+    public static String safeReason(RuntimeException e) {
+        return e instanceof JobFailureException f ? f.getMessage() : "Unexpected error (" + e.getClass().getSimpleName() + ").";
+    }
 }

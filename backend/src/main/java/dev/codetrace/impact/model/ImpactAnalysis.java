@@ -40,15 +40,4 @@ public record ImpactAnalysis(String algorithmVersion, int depth, List<ChangedEnt
     public long testsAffected() {
         return affected.stream().filter(AffectedSymbol::test).count();
     }
-
-    /** Module of a repository path: the part before {@code /src/}, or "(root)". */
-    public static String moduleOf(String path) {
-        int i = path.indexOf("/src/");
-        if (i > 0) return path.substring(0, i);
-        return "(root)";
-    }
-
-    public static boolean isTestPath(String path) {
-        return path.startsWith("src/test/") || path.contains("/src/test/");
-    }
 }

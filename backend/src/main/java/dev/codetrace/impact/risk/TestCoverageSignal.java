@@ -1,5 +1,6 @@
 package dev.codetrace.impact.risk;
 
+import dev.codetrace.common.util.SourcePaths;
 import dev.codetrace.impact.change.ChangedSymbolMapper.Kind;
 import dev.codetrace.impact.model.ImpactAnalysis;
 import org.springframework.stereotype.Component;
@@ -20,7 +21,7 @@ public class TestCoverageSignal implements RiskSignal {
     @Override
     public RiskFactor evaluate(ImpactAnalysis a) {
         boolean productionChanged = a.changed().stream()
-                .anyMatch(c -> c.kind() != Kind.ADDED && !ImpactAnalysis.isTestPath(c.any().path()));
+                .anyMatch(c -> c.kind() != Kind.ADDED && !SourcePaths.isTestPath(c.any().path()));
         if (!productionChanged) {
             return new RiskFactor(id(), 0, maxPoints(), "No existing production symbol changed.");
         }

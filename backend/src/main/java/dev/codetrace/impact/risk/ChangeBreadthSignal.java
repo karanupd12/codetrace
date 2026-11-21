@@ -1,5 +1,6 @@
 package dev.codetrace.impact.risk;
 
+import dev.codetrace.common.util.SourcePaths;
 import dev.codetrace.impact.model.ImpactAnalysis;
 import org.springframework.stereotype.Component;
 
@@ -18,7 +19,7 @@ public class ChangeBreadthSignal implements RiskSignal {
 
     @Override
     public RiskFactor evaluate(ImpactAnalysis a) {
-        long n = a.changed().stream().filter(c -> !ImpactAnalysis.isTestPath(c.any().path())).count();
+        long n = a.changed().stream().filter(c -> !SourcePaths.isTestPath(c.any().path())).count();
         int points = n <= 2 ? 0 : n <= 10 ? 5 : n <= 30 ? 10 : 15;
         return new RiskFactor(id(), points, maxPoints(), n + " production symbol(s) changed.");
     }

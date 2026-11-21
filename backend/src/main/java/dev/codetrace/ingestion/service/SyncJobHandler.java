@@ -4,8 +4,9 @@ import dev.codetrace.ingestion.git.GitSourceManager;
 import dev.codetrace.ingestion.git.RevisionDiscovery;
 import dev.codetrace.jobs.JobFailureException;
 import dev.codetrace.jobs.JobFailureException.Category;
-import dev.codetrace.jobs.repository.JobRepository.Job;
+import dev.codetrace.jobs.model.Job;
 import dev.codetrace.jobs.JobHandler;
+import dev.codetrace.jobs.model.JobOperation;
 import dev.codetrace.source.repository.SourceRepositoryRepository;
 import dev.codetrace.source.repository.SourceRepositoryRepository.Repo;
 import org.eclipse.jgit.lib.Repository;
@@ -18,7 +19,6 @@ import org.springframework.stereotype.Component;
 @Component
 @Profile("worker")
 public class SyncJobHandler implements JobHandler {
-    public static final String OPERATION = "SYNC";
     private static final Logger log = LoggerFactory.getLogger(SyncJobHandler.class);
 
     private final SourceRepositoryRepository repos;
@@ -32,8 +32,8 @@ public class SyncJobHandler implements JobHandler {
     }
 
     @Override
-    public String operation() {
-        return OPERATION;
+    public JobOperation operation() {
+        return JobOperation.SYNC;
     }
 
     @Override

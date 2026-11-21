@@ -1,7 +1,7 @@
 package dev.codetrace.report.markdown.sections;
 
 import static dev.codetrace.report.markdown.MarkdownText.code;
-import static dev.codetrace.report.markdown.MarkdownText.shortHash;
+import static dev.codetrace.common.util.Commits.shortHash;
 
 import dev.codetrace.impact.repository.ImpactReportRepository.Report;
 import dev.codetrace.report.markdown.MarkdownText;

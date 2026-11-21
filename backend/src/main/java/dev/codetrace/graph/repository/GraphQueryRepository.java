@@ -1,5 +1,7 @@
 package dev.codetrace.graph.repository;
 
+import dev.codetrace.common.util.Batches;
+import dev.codetrace.common.util.SqlLike;
 import dev.codetrace.common.web.Page;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -68,7 +70,7 @@ public class GraphQueryRepository {
                 .param("s", snapshotId).param("lim", limit).param("off", offset);
         if (type != null) { count = count.param("t", type); select = select.param("t", type); }
         if (q != null) {
-            String pattern = "%" + escapeLike(q.toLowerCase()) + "%";
+            String pattern = SqlLike.contains(q.toLowerCase());
             count = count.param("q", pattern);
             select = select.param("q", pattern);
         }
@@ -84,7 +86,7 @@ public class GraphQueryRepository {
     public List<NodeView> nodesByIds(UUID snapshotId, Collection<UUID> ids) {
         if (ids.isEmpty()) return List.of();
         List<NodeView> out = new ArrayList<>();
-        for (List<UUID> chunk : chunks(ids, 1000)) {
+        for (List<UUID> chunk : Batches.partition(ids)) {
             out.addAll(jdbc.sql("select " + NODE_COLS + " from code_node where snapshot_id = :s and id in (:ids) order by qualified_name")
                     .param("s", snapshotId).param("ids", chunk).query(GraphQueryRepository::node).list());
         }
@@ -134,7 +136,7 @@ public class GraphQueryRepository {
         String where = " where e.snapshot_id = :s and " + touch + " and e.edge_type in (:types) and e.resolution_state in (:states)"
                 + (resolvedTargetsOnly ? " and e.dst_node_id is not null" : "");
         List<EdgeView> out = new ArrayList<>();
-        for (List<UUID> chunk : chunks(ids, 1000)) {
+        for (List<UUID> chunk : Batches.partition(ids)) {
             int remaining = limit - out.size();
             if (remaining <= 0) break;
             out.addAll(jdbc.sql(EDGE_SELECT + where + " order by e.id limit :lim")
@@ -145,17 +147,6 @@ public class GraphQueryRepository {
     }
 
     // ---- helpers ----------------------------------------------------------------------------------------------------
-
-    private static <T> List<List<T>> chunks(Collection<T> items, int size) {
-        List<T> all = new ArrayList<>(items);
-        List<List<T>> out = new ArrayList<>();
-        for (int i = 0; i < all.size(); i += size) out.add(all.subList(i, Math.min(all.size(), i + size)));
-        return out;
-    }
-
-    private static String escapeLike(String s) {
-        return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
-    }
 
     private static NodeView node(ResultSet rs, int i) throws SQLException {
         return new NodeView(rs.getObject("id", UUID.class), rs.getString("node_type"), rs.getString("qualified_name"),

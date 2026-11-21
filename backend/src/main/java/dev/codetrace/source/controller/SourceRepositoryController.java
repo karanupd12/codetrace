@@ -1,8 +1,8 @@
 package dev.codetrace.source.controller;
 
+import dev.codetrace.jobs.controller.dto.JobResponse;
 import dev.codetrace.source.model.SourceType;
 import dev.codetrace.source.service.SourceRepositoryService;
-import dev.codetrace.jobs.repository.JobRepository.Job;
 import dev.codetrace.source.repository.SourceRepositoryRepository.Repo;
 import dev.codetrace.source.service.SourceRepositoryService.Registered;
 import jakarta.validation.Valid;
@@ -48,18 +48,7 @@ public class SourceRepositoryController {
     public record RevisionView(String commitHash, String summary, OffsetDateTime authorTime) {
     }
 
-    public record JobView(UUID id, UUID repositoryId, String operation, String status, String commitHash,
-                          int attempts, String errorCategory, String errorMessage, OffsetDateTime createdAt,
-                          OffsetDateTime startedAt, OffsetDateTime finishedAt, Integer filesParsed,
-                          Integer filesSkipped, Integer symbolsExtracted, String parserVersion) {
-        public static JobView of(Job j) {
-            return new JobView(j.id(), j.repositoryId(), j.operation(), j.status(), j.commitHash(), j.attempts(),
-                    j.errorCategory(), j.errorMessage(), j.createdAt(), j.startedAt(), j.finishedAt(),
-                    j.filesParsed(), j.filesSkipped(), j.symbolsExtracted(), j.parserVersion());
-        }
-    }
-
-    public record RegisteredView(RepositoryView repository, JobView syncJob) {
+    public record RegisteredView(RepositoryView repository, JobResponse syncJob) {
     }
 
     private final SourceRepositoryService service;
@@ -71,7 +60,7 @@ public class SourceRepositoryController {
     @PostMapping("/repositories")
     public ResponseEntity<RegisteredView> register(@Valid @RequestBody CreateRepositoryRequest req) {
         Registered r = service.register(req.sourceType(), req.location(), req.displayName());
-        RegisteredView body = new RegisteredView(RepositoryView.of(r.repo()), JobView.of(r.syncJob()));
+        RegisteredView body = new RegisteredView(RepositoryView.of(r.repo()), JobResponse.from(r.syncJob()));
         return ResponseEntity.status(r.created() ? HttpStatus.ACCEPTED : HttpStatus.OK).body(body);
     }
 
@@ -93,23 +82,18 @@ public class SourceRepositoryController {
 
     @PostMapping("/repositories/{id}/sync")
     @org.springframework.web.bind.annotation.ResponseStatus(HttpStatus.ACCEPTED)
-    public JobView resync(@PathVariable UUID id) {
-        return JobView.of(service.resync(id));
+    public JobResponse resync(@PathVariable UUID id) {
+        return JobResponse.from(service.resync(id));
     }
 
     @PostMapping("/repositories/{id}/index-jobs")
     @org.springframework.web.bind.annotation.ResponseStatus(HttpStatus.ACCEPTED)
-    public JobView requestIndex(@PathVariable UUID id, @Valid @RequestBody(required = false) IndexRequest req) {
-        return JobView.of(service.requestIndex(id, req == null ? null : req.commitHash()));
+    public JobResponse requestIndex(@PathVariable UUID id, @Valid @RequestBody(required = false) IndexRequest req) {
+        return JobResponse.from(service.requestIndex(id, req == null ? null : req.commitHash()));
     }
 
     @GetMapping("/repositories/{id}/index-jobs")
-    public List<JobView> jobs(@PathVariable UUID id) {
-        return service.jobsFor(id).stream().map(JobView::of).toList();
-    }
-
-    @GetMapping("/index-jobs/{jobId}")
-    public JobView job(@PathVariable UUID jobId) {
-        return JobView.of(service.job(jobId));
+    public List<JobResponse> jobs(@PathVariable UUID id) {
+        return service.jobsFor(id).stream().map(JobResponse::from).toList();
     }
 }

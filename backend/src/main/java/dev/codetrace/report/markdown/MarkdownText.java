@@ -33,10 +33,6 @@ public final class MarkdownText {
         return value == null ? "" : value.replace("|", "\\|").replaceAll("[\\r\\n]+", " ");
     }
 
-    public static String shortHash(String commit) {
-        return commit == null ? "" : commit.substring(0, Math.min(7, commit.length()));
-    }
-
     public static String table(List<String> header, List<List<String>> rows) {
         StringBuilder sb = new StringBuilder();
         sb.append("| ").append(String.join(" | ", header)).append(" |\n");

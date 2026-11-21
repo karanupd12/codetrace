@@ -1,5 +1,6 @@
 package dev.codetrace.impact.risk;
 
+import dev.codetrace.common.util.SourcePaths;
 import dev.codetrace.impact.model.ImpactAnalysis;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -35,8 +36,8 @@ class RiskAssessorTest {
     }
 
     private static AffectedSymbol affected(String path, boolean certain) {
-        return new AffectedSymbol(UUID.randomUUID(), "METHOD", "p.X#m", "()", path, 1, ImpactAnalysis.moduleOf(path),
-                ImpactAnalysis.isTestPath(path), 1, certain, certain ? 1.0 : 0.5, "p.A#a", List.of());
+        return new AffectedSymbol(UUID.randomUUID(), "METHOD", "p.X#m", "()", path, 1, SourcePaths.displayModule(path),
+                SourcePaths.isTestPath(path), 1, certain, certain ? 1.0 : 0.5, "p.A#a", List.of());
     }
 
     private static ImpactAnalysis analysis(List<ChangedEntry> changed, List<AffectedSymbol> affected, int possible, boolean truncated) {

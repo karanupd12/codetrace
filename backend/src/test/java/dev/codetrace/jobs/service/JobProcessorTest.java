@@ -1,6 +1,7 @@
 package dev.codetrace.jobs.service;
 
 import dev.codetrace.jobs.JobHandler;
+import dev.codetrace.jobs.model.JobOperation;
 import dev.codetrace.jobs.queue.JobPublisher;
 import dev.codetrace.jobs.repository.JobRepository;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -17,7 +18,7 @@ import static org.mockito.Mockito.when;
 
 import dev.codetrace.jobs.JobFailureException;
 import dev.codetrace.jobs.JobFailureException.Category;
-import dev.codetrace.jobs.repository.JobRepository.Job;
+import dev.codetrace.jobs.model.Job;
 import dev.codetrace.support.GitFixtures;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
@@ -43,7 +44,7 @@ class JobProcessorTest {
         jobs = mock(JobRepository.class);
         publisher = mock(JobPublisher.class);
         handler = mock(JobHandler.class);
-        when(handler.operation()).thenReturn("SYNC");
+        when(handler.operation()).thenReturn(JobOperation.SYNC);
         processor = new JobProcessor(jobs, publisher, GitFixtures.props(Path.of("ws"), List.of()), List.of(handler)); // maxAttempts=3
     }
 
@@ -72,7 +73,7 @@ class JobProcessorTest {
     @Test
     void dispatchesToTheHandlerOwningTheOperationAndMarksSuccess() {
         JobHandler other = mock(JobHandler.class);
-        when(other.operation()).thenReturn("INDEX");
+        when(other.operation()).thenReturn(JobOperation.INDEX);
         processor = new JobProcessor(jobs, publisher, GitFixtures.props(Path.of("ws"), List.of()), List.of(handler, other));
         claimed(job("INDEX", 1));
 
@@ -86,7 +87,7 @@ class JobProcessorTest {
     @Test
     void duplicateHandlersForOneOperationFailFastAtStartup() {
         JobHandler twin = mock(JobHandler.class);
-        when(twin.operation()).thenReturn("SYNC");
+        when(twin.operation()).thenReturn(JobOperation.SYNC);
 
         assertThatThrownBy(() -> new JobProcessor(jobs, publisher, GitFixtures.props(Path.of("ws"), List.of()),
                 List.of(handler, twin))).isInstanceOf(IllegalStateException.class);
@@ -137,7 +138,7 @@ class JobProcessorTest {
                 Category.REVISION_NOT_FOUND, Category.TIMEOUT)) {
             jobs = mock(JobRepository.class);
             handler = mock(JobHandler.class); // fresh mocks: earlier stubbing would otherwise throw on re-stub
-            when(handler.operation()).thenReturn("SYNC");
+            when(handler.operation()).thenReturn(JobOperation.SYNC);
             processor = new JobProcessor(jobs, publisher, GitFixtures.props(Path.of("ws"), List.of()), List.of(handler));
             Job j = job("SYNC", 1);
             claimed(j);

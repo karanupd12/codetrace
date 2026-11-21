@@ -1,5 +1,6 @@
 package dev.codetrace.graph.repository;
 
+import dev.codetrace.common.util.Texts;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
@@ -96,7 +97,7 @@ public class GraphSnapshotRepository {
                 update graph_snapshot set status = 'FAILED', failure_reason = :why, node_count = null, edge_count = null,
                     resolved_edge_count = null, ambiguous_edge_count = null, unresolved_edge_count = null,
                     updated_at = now() where id = :id and status <> 'PUBLISHED'""")
-                .param("id", id).param("why", truncate(reason)).update();
+                .param("id", id).param("why", Texts.truncate(reason, 500)).update();
         if (updated == 1) clearGraph(id); // status first: once FAILED the rows are no longer protected
     }
 
@@ -121,11 +122,6 @@ public class GraphSnapshotRepository {
     private void clearGraph(UUID id) {
         jdbc.sql("delete from dependency_edge where snapshot_id = :id").param("id", id).update();
         jdbc.sql("delete from code_node where snapshot_id = :id").param("id", id).update();
-    }
-
-    private static String truncate(String s) {
-        if (s == null) return "";
-        return s.length() <= 500 ? s : s.substring(0, 500);
     }
 
     private static Snapshot map(ResultSet rs, int i) throws SQLException {

@@ -12,10 +12,11 @@ import dev.codetrace.graph.model.GraphModel.Result;
 import dev.codetrace.graph.repository.GraphSnapshotRepository.Snapshot;
 import dev.codetrace.jobs.JobFailureException;
 import dev.codetrace.jobs.JobFailureException.Category;
-import dev.codetrace.jobs.repository.JobRepository;
-import dev.codetrace.jobs.repository.JobRepository.IndexedRevision;
-import dev.codetrace.jobs.repository.JobRepository.Job;
+import dev.codetrace.jobs.service.JobService;
+import dev.codetrace.jobs.model.IndexedRevision;
+import dev.codetrace.jobs.model.Job;
 import dev.codetrace.jobs.JobHandler;
+import dev.codetrace.jobs.model.JobOperation;
 import dev.codetrace.ingestion.parser.JavaSymbolExtractor;
 import java.util.List;
 import org.slf4j.Logger;
@@ -33,10 +34,9 @@ import org.springframework.stereotype.Component;
 @Component
 @Profile("worker")
 public class GraphBuildHandler implements JobHandler {
-    public static final String OPERATION = "GRAPH_BUILD";
     private static final Logger log = LoggerFactory.getLogger(GraphBuildHandler.class);
 
-    private final JobRepository jobs;
+    private final JobService jobs;
     private final GraphSnapshotRepository snapshots;
     private final GraphInputRepository loader;
     private final GraphWriteRepository writer;
@@ -44,7 +44,7 @@ public class GraphBuildHandler implements JobHandler {
     private final GraphProperties props;
     private final GraphBuilder builder = new GraphBuilder();
 
-    public GraphBuildHandler(JobRepository jobs, GraphSnapshotRepository snapshots, GraphInputRepository loader, GraphWriteRepository writer,
+    public GraphBuildHandler(JobService jobs, GraphSnapshotRepository snapshots, GraphInputRepository loader, GraphWriteRepository writer,
                              GraphIntegrityRepository validator, GraphProperties props) {
         this.jobs = jobs;
         this.snapshots = snapshots;
@@ -55,8 +55,8 @@ public class GraphBuildHandler implements JobHandler {
     }
 
     @Override
-    public String operation() {
-        return OPERATION;
+    public JobOperation operation() {
+        return JobOperation.GRAPH_BUILD;
     }
 
     @Override
@@ -92,7 +92,7 @@ public class GraphBuildHandler implements JobHandler {
             // Infrastructure fault: leave the snapshot for the retried job, which clears it in begin().
             throw e;
         } catch (RuntimeException e) {
-            String reason = e instanceof JobFailureException ie ? ie.getMessage() : "Unexpected error (" + e.getClass().getSimpleName() + ").";
+            String reason = JobFailureException.safeReason(e);
             snapshots.markFailed(snapshot.id(), reason);
             throw e;
         }

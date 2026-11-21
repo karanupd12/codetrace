@@ -14,9 +14,12 @@ import static org.mockito.Mockito.when;
 
 import dev.codetrace.graph.repository.GraphSnapshotRepository.Snapshot;
 import dev.codetrace.jobs.repository.JobRepository;
-import dev.codetrace.jobs.repository.JobRepository.IndexedRevision;
-import dev.codetrace.jobs.repository.JobRepository.Job;
+import dev.codetrace.jobs.model.IndexedRevision;
+import dev.codetrace.jobs.model.Job;
 import dev.codetrace.jobs.queue.JobPublisher;
+import dev.codetrace.jobs.service.JobService;
+import dev.codetrace.source.service.SourceRepositoryService;
+import dev.codetrace.source.service.SourceValidator;
 import dev.codetrace.ingestion.parser.JavaSymbolExtractor;
 import dev.codetrace.source.repository.SourceRepositoryRepository;
 import dev.codetrace.source.repository.SourceRepositoryRepository.Repo;
@@ -49,7 +52,9 @@ class GraphSnapshotServiceTest {
         jobs = mock(JobRepository.class);
         snapshots = mock(GraphSnapshotRepository.class);
         publisher = mock(JobPublisher.class);
-        service = new GraphSnapshotService(repos, jobs, snapshots, publisher);
+        JobService jobService = new JobService(jobs, publisher);
+        service = new GraphSnapshotService(new SourceRepositoryService(repos, jobService, mock(SourceValidator.class)),
+                jobService, snapshots);
 
         when(repos.find(repoId)).thenReturn(Optional.of(new Repo(repoId, SourceType.GIT_URL, "https://github.com/o/r", "o/r",
                 "SYNCED", "main", COMMIT, OffsetDateTime.now())));

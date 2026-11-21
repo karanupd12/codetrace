@@ -23,7 +23,7 @@ import dev.codetrace.impact.risk.RiskAssessor.RiskAssessment;
 import dev.codetrace.ingestion.git.GitSourceManager;
 import dev.codetrace.jobs.JobFailureException;
 import dev.codetrace.jobs.JobFailureException.Category;
-import dev.codetrace.jobs.repository.JobRepository.Job;
+import dev.codetrace.jobs.model.Job;
 import dev.codetrace.source.repository.SourceRepositoryRepository;
 import dev.codetrace.source.repository.SourceRepositoryRepository.Repo;
 import java.util.List;
@@ -66,7 +66,7 @@ class ImpactJobHandlerTest {
 
     @Test
     void operationNameIsImpact() {
-        assertThat(handler.operation()).isEqualTo("IMPACT");
+        assertThat(handler.operation()).isEqualTo(dev.codetrace.jobs.model.JobOperation.IMPACT);
     }
 
     @Test
