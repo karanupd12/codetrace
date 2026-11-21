@@ -50,7 +50,7 @@ public class ChangeDetector {
             }
             List<FileChange> files = new ArrayList<>();
             for (DiffEntry e : entries) {
-                files.add(fileChange(diff, e));
+                files.add(fileChange(repo, diff, e));
             }
             files.sort(java.util.Comparator.comparing(FileChange::path));
             return new ChangeSet(baseCommit, headCommit, List.copyOf(files));
@@ -59,7 +59,7 @@ public class ChangeDetector {
         }
     }
 
-    private FileChange fileChange(DiffFormatter diff, DiffEntry e) throws IOException {
+    private FileChange fileChange(Repository repo, DiffFormatter diff, DiffEntry e) throws IOException {
         ChangeType type = switch (e.getChangeType()) {
             case ADD -> ChangeType.ADDED;
             case DELETE -> ChangeType.DELETED;
@@ -71,12 +71,50 @@ public class ChangeDetector {
         var header = diff.toFileHeader(e);
         boolean binary = header.getPatchType() == org.eclipse.jgit.patch.FileHeader.PatchType.BINARY;
         List<Hunk> hunks = new ArrayList<>();
+        int ignored = 0;
+        boolean javaEdit = !binary && (type == ChangeType.MODIFIED || type == ChangeType.RENAMED)
+                && newPath != null && newPath.endsWith(".java");
+        boolean[] oldCode = javaEdit ? SignificantLines.of(text(repo, e.getOldId().toObjectId())) : null;
+        boolean[] newCode = javaEdit ? SignificantLines.of(text(repo, e.getNewId().toObjectId())) : null;
         if (!binary) {
             for (Edit edit : header.toEditList()) {
-                hunks.add(new Hunk(edit.getBeginA() + 1, edit.getEndA(), edit.getBeginB() + 1, edit.getEndB()));
+                if (!javaEdit) {
+                    hunks.add(new Hunk(edit.getBeginA() + 1, edit.getEndA(), edit.getBeginB() + 1, edit.getEndB()));
+                    continue;
+                }
+                // keep only runs of lines that hold code; an edit of comments or whitespace changes no behaviour
+                List<Hunk> code = new ArrayList<>();
+                for (int[] run : runs(oldCode, edit.getBeginA(), edit.getEndA())) {
+                    code.add(new Hunk(run[0], run[1], edit.getBeginB() + 1, edit.getBeginB()));
+                }
+                for (int[] run : runs(newCode, edit.getBeginB(), edit.getEndB())) {
+                    code.add(new Hunk(edit.getBeginA() + 1, edit.getBeginA(), run[0], run[1]));
+                }
+                if (code.isEmpty()) ignored++;
+                hunks.addAll(code);
             }
         }
-        return new FileChange(type, oldPath, newPath, capHunks(hunks), binary);
+        return new FileChange(type, oldPath, newPath, capHunks(hunks), binary, ignored);
+    }
+
+    /** 1-based inclusive runs of consecutive significant lines within the 0-based half-open range [from, to). */
+    private static List<int[]> runs(boolean[] significant, int from, int to) {
+        List<int[]> out = new ArrayList<>();
+        int start = -1;
+        for (int i = from; i < to; i++) {
+            boolean code = i >= significant.length || significant[i]; // unknown lines count as code
+            if (code && start < 0) start = i;
+            if (!code && start >= 0) {
+                out.add(new int[] {start + 1, i});
+                start = -1;
+            }
+        }
+        if (start >= 0) out.add(new int[] {start + 1, to});
+        return out;
+    }
+
+    private static String text(Repository repo, ObjectId blob) throws IOException {
+        return new String(repo.open(blob, org.eclipse.jgit.lib.Constants.OBJ_BLOB).getBytes(), java.nio.charset.StandardCharsets.UTF_8);
     }
 
     /** Keeps the first hunks and folds the rest into one so a pathological file stays bounded but fully covered. */

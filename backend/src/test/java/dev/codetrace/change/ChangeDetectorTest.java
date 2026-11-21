@@ -59,10 +59,12 @@ class ChangeDetectorTest {
 
             FileChange f = only(cs, "A.java");
             assertThat(f.type()).isEqualTo(ChangeType.MODIFIED);
-            assertThat(f.hunks()).containsExactly(new Hunk(4, 4, 4, 5));
+            // one edit, reported per side: line 4 removed from the base, lines 4-5 added in the head
+            assertThat(f.hunks()).containsExactly(new Hunk(4, 4, 4, 3), new Hunk(4, 3, 4, 5));
             assertThat(f.hunks().get(0).touchesOld(4, 4)).isTrue();
-            assertThat(f.hunks().get(0).touchesNew(5, 5)).isTrue();
-            assertThat(f.hunks().get(0).touchesNew(6, 9)).isFalse();
+            assertThat(f.hunks().get(1).touchesNew(5, 5)).isTrue();
+            assertThat(f.hunks()).noneMatch(h -> h.touchesNew(6, 9));
+            assertThat(f.ignoredHunks()).isZero();
         }
     }
 
@@ -78,6 +80,55 @@ class ChangeDetectorTest {
             assertThat(h.newEnd()).isEqualTo(4);
             assertThat(h.oldEnd()).isLessThan(h.oldStart());
             assertThat(h.touchesOld(1, 100)).isFalse(); // nothing was removed
+        }
+    }
+
+    @Test
+    void editsToCommentsAndBlankLinesAreIgnored() throws Exception {
+        String before = """
+                class A {
+                    int x;
+
+                    void m() {
+                        x++;
+                    }
+                }
+                """;
+        String after = """
+                class A {
+                    /** The counter. */
+                    int x;
+
+                    // increments x
+                    void m() {
+                        x++; // still the same code
+                    }
+                }
+                """;
+        String base = GitFixtures.createRepo(tmp, files("A.java", before));
+        try (Repository repo = open()) {
+            String head = GitFixtures.commit(repo, files("A.java", after), base, "docs only");
+
+            FileChange f = only(detector(100, 100).detect(repo, base, head), "A.java");
+
+            // the trailing comment changed a code line, so that line counts; the Javadoc and the comment line do not
+            assertThat(f.hunks()).allSatisfy(h -> assertThat(h.touchesNew(2, 2) || h.touchesNew(5, 5)).isFalse());
+            assertThat(f.hunks()).anyMatch(h -> h.touchesNew(7, 7));
+            assertThat(f.ignoredHunks()).isEqualTo(2);
+        }
+    }
+
+    @Test
+    void addingAMemberWithItsJavadocOnlyCoversTheMembersCode() throws Exception {
+        String before = "class A {\n    void a() {}\n}\n";
+        String after = "class A {\n    void a() {}\n\n    /**\n     * New.\n     */\n    void b() {}\n}\n";
+        String base = GitFixtures.createRepo(tmp, files("A.java", before));
+        try (Repository repo = open()) {
+            String head = GitFixtures.commit(repo, files("A.java", after), base, "add b");
+
+            FileChange f = only(detector(100, 100).detect(repo, base, head), "A.java");
+
+            assertThat(f.hunks()).containsExactly(new Hunk(3, 2, 7, 7)); // only "void b() {}"
         }
     }
 

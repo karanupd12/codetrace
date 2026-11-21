@@ -21,8 +21,16 @@ public record ChangeSet(String baseCommit, String headCommit, List<FileChange> f
         }
     }
 
-    /** {@code oldPath} is null for added files and {@code newPath} is null for deleted ones. */
-    public record FileChange(ChangeType type, String oldPath, String newPath, List<Hunk> hunks, boolean binary) {
+    /**
+     * {@code oldPath} is null for added files and {@code newPath} is null for deleted ones. For modified Java files the
+     * hunks cover only lines that hold code; {@code ignoredHunks} counts edits that touched only comments or whitespace.
+     */
+    public record FileChange(ChangeType type, String oldPath, String newPath, List<Hunk> hunks, boolean binary,
+                             int ignoredHunks) {
+        public FileChange(ChangeType type, String oldPath, String newPath, List<Hunk> hunks, boolean binary) {
+            this(type, oldPath, newPath, hunks, binary, 0);
+        }
+
         public String path() {
             return newPath != null ? newPath : oldPath;
         }
@@ -34,6 +42,10 @@ public record ChangeSet(String baseCommit, String headCommit, List<FileChange> f
 
     public List<FileChange> javaFiles() {
         return files.stream().filter(f -> f.isJava() && !f.binary()).toList();
+    }
+
+    public int commentOnlyEdits() {
+        return javaFiles().stream().mapToInt(FileChange::ignoredHunks).sum();
     }
 
     public int nonJavaFileCount() {

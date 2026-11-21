@@ -454,7 +454,7 @@ class ImpactIT {
 
         JsonNode report = get("/api/v1/impact-reports/" + reportId);
         assertThat(report.get("status").asText()).isEqualTo("COMPLETED");
-        assertThat(report.get("algorithmVersion").asText()).isEqualTo("impact-1");
+        assertThat(report.get("algorithmVersion").asText()).isEqualTo(ImpactAnalyzer.ALGORITHM_VERSION);
         assertThat(report.get("baseCommit").asText()).isEqualTo(commits.get(0));
         assertThat(report.get("headCommit").asText()).isEqualTo(commits.get(1));
         assertThat(report.get("baseSnapshotId").asText()).isEqualTo(snapshots.get(commits.get(0)).toString());
@@ -576,7 +576,7 @@ class ImpactIT {
         assertThat(md).startsWith("# Change impact report")
                 .contains("| Base graph snapshot | `" + snapshots.get(commits.get(0)) + "` |")
                 .contains("| Head graph snapshot | `" + snapshots.get(commits.get(1)) + "` |")
-                .contains("| Algorithm | `impact-1` |")
+                .contains("| Algorithm | `" + ImpactAnalyzer.ALGORITHM_VERSION + "` |")
                 .contains("| MODIFIED | `shop.Pricing#tax(double)` |")
                 .contains("### Tests to run (1)")
                 .contains("`shopweb.CheckoutTest#paysTheTotal()`");

@@ -38,7 +38,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class ImpactAnalyzer {
-    public static final String ALGORITHM_VERSION = "impact-1";
+    public static final String ALGORITHM_VERSION = "impact-2"; // 2: edits to comments and whitespace no longer mark symbols as changed
     /** Edge types that make one symbol depend on another. Containment and imports are structure, not dependency. */
     static final Set<String> DEPENDENCY_EDGES = Set.of("CALLS", "REFERENCES", "EXTENDS", "IMPLEMENTS");
     private static final Set<String> TRAVERSABLE = Set.of("RESOLVED", "AMBIGUOUS");
