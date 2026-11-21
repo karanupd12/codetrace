@@ -36,6 +36,9 @@ CODETRACE takes the opposite approach:
 
 | | |
 |---|---|
+| **Change impact analysis** | Pick a *base* and a *head* revision. CODETRACE finds the symbols that were added, modified or removed, then walks the dependency graph backwards to list everything that depends on them, including the **tests to run**, each with the chain of evidence that links it to the change. |
+| **Explainable risk score** | A 0–100 score and level (LOW, MEDIUM, HIGH, CRITICAL) built from independent signals: change breadth, blast radius, breaking API changes, module spread, uncertainty, missing tests and truncation. Every point comes with a one-line reason. |
+| **Markdown impact report** | A downloadable report that names the exact revisions, graph snapshots and algorithm version, so anyone can reproduce it. |
 | **Connect anything public** | A GitHub, GitLab or Bitbucket HTTPS link, or a Git repository on disk. |
 | **Pinned to a commit** | Pick any recent revision; the analysis belongs to that exact commit. |
 | **Java code model** | Classes, interfaces, enums, records, annotations, nested types, methods and constructors (overloads kept distinct), fields and imports. |
@@ -99,6 +102,7 @@ These tools listen on `127.0.0.1` only. Dozzle reads the Docker socket, so keep 
 2. When the status shows `SYNCED`, open the repository and click **Index** on a commit.
 3. Click **Build graph**, then **Open graph**.
 4. Search for a class or method, adjust depth and filters, and click a link to see its evidence.
+5. Build the graph for a second revision too. In **Change impact**, pick the *base* (before) and *head* (after) revisions and click **Analyze change**. Open the finished report to see the risk breakdown, changed and affected symbols, tests to run and evidence, or download it as Markdown.
 
 **From the API**
 
@@ -116,6 +120,12 @@ curl -X POST localhost:8080/api/v1/repositories/<repo-id>/graph-snapshots -H 'Co
 curl "localhost:8080/api/v1/snapshots/<snapshot-id>/nodes?type=TYPE&q=Gson"
 curl "localhost:8080/api/v1/snapshots/<snapshot-id>/graph?center=<node-id>&depth=2"
 curl "localhost:8080/api/v1/snapshots/<snapshot-id>/paths?from=<a>&to=<b>&types=CONTAINS,CALLS,REFERENCES"
+
+# 4. Analyse a change between two graphed revisions, then read or download the report
+curl -X POST localhost:8080/api/v1/repositories/<repo-id>/impact-reports \
+  -H 'Content-Type: application/json' -d '{"baseCommit":"<40-char sha>","headCommit":"<40-char sha>","depth":4}'
+curl "localhost:8080/api/v1/impact-reports/<report-id>/findings?type=AFFECTED&limit=50"
+curl -OJ "localhost:8080/api/v1/impact-reports/<report-id>/report.md"
 ```
 
 | Endpoint | Purpose |
@@ -126,8 +136,12 @@ curl "localhost:8080/api/v1/snapshots/<snapshot-id>/paths?from=<a>&to=<b>&types=
 | `GET /snapshots/{id}/nodes` | Paged node search |
 | `GET /snapshots/{id}/graph` | Bounded neighbourhood around a node |
 | `GET /snapshots/{id}/paths` | All shortest paths between two nodes, flagged *certain* or not |
+| `POST /repositories/{id}/impact-reports` | Analyse the change between two graphed revisions; idempotent |
+| `GET /impact-reports/{id}` | Risk score, level and the reason behind each signal |
+| `GET /impact-reports/{id}/findings` | Paged changed, affected and possible symbols with evidence chains |
+| `GET /impact-reports/{id}/report.md` | The Markdown impact report |
 
-Errors follow [RFC 7807](https://www.rfc-editor.org/rfc/rfc7807), and every response carries an `X-Correlation-Id` header. Graph queries answer only for published snapshots (`409` otherwise).
+Errors follow [RFC 7807](https://www.rfc-editor.org/rfc/rfc7807), and every response carries an `X-Correlation-Id` header. Graph queries answer only for published snapshots, and findings only for completed reports (`409` otherwise).
 
 ---
 
@@ -153,8 +167,20 @@ Errors follow [RFC 7807](https://www.rfc-editor.org/rfc/rfc7807), and every resp
  │ 4. Graph    │   validate invariants in SQL, then publish atomically
  └──────┬──────┘
         ▼
-   Dashboard and REST API: search, neighbourhoods, shortest paths
+ ┌─────────────┐   diff base and head, map changed lines to symbols, walk the
+ │ 5. Impact   │   base graph backwards, score the risk, store an immutable
+ └──────┬──────┘   report in one transaction
+        ▼
+   Dashboard and REST API: graph explorer, impact reports, Markdown download
 ```
+
+### How a change is analysed
+
+1. **Diff.** The two commits' trees are compared directly in Git, with rename detection. A small lexer narrows each changed region to lines that hold code, so edits to comments, Javadoc or blank lines change nothing.
+2. **Changed symbols.** Each region marks the *innermost* declaration it touches: an edit inside a method marks the method, not its class. Comparing both revisions labels every symbol `ADDED`, `MODIFIED` or `REMOVED`; a changed signature is a removal plus an addition, which is exactly what breaks callers.
+3. **Blast radius.** A breadth-first search follows `CALLS`, `REFERENCES`, `EXTENDS` and `IMPLEMENTS` edges *backwards* in the **base** revision's graph, the code that relied on the old behaviour. It is bounded by depth and size and safe on cycles.
+4. **Evidence.** Every affected symbol keeps its distance and the shortest chain of edges to the change, with file and line per hop. It is *proven* if every hop is resolved and *uncertain* if the chain crosses an ambiguous link. Calls whose receiver type is unknown are listed separately as *possible* dependents and never counted.
+5. **Risk and report.** Seven independent signals add up to a 0–100 score. The report binds the two graph snapshots and the algorithm version, becomes read-only once complete, and renders the same Markdown every time.
 
 ### The graph model
 
@@ -216,6 +242,19 @@ Measured on [google/gson](https://github.com/google/gson) at commit `e5f02ab`: 2
 **Graph write throughput:** 30,000 nodes + 60,000 edges in 6.3 s (≈ 14,200 rows/s) on PostgreSQL in Testcontainers, using batched multi-row inserts. Concurrent readers during that write never observed a partially published snapshot.
 
 **Resolution quality on gson:** of 43,986 edges, 40.2 % are resolved, 23.5 % ambiguous and 36.3 % unresolved. Of 15,998 call sites, 37.5 % resolve to one target, 11.3 % are ambiguous (several overloads with the same argument count), and 51.2 % are unresolved, mostly calls on JDK or test-library types that are not part of the repository.
+
+**Change impact on gson:** commit `7fc4d18` ("Add JsonPrimitive.TRUE, FALSE, and of(boolean)") against its parent, depth 4.
+
+| Result | Value |
+|---|---|
+| Analysis job (diff, map, traverse, score, store) | 5.8 s |
+| Changed symbols | 14 (9 production, 5 test) |
+| Affected | 14 production symbols, 147 test symbols, 17 possible dependents |
+| Risk | 35 / 100, MEDIUM |
+
+Most affected symbols in this example are marked *uncertain*. The change touches `JsonArray.add(Boolean)`, which has five one-argument overloads that the resolver cannot tell apart without argument types, so every caller of `add(...)` is a candidate rather than a proven dependent.
+
+**Accuracy on labelled changes:** four hand-labelled scenarios run through the full pipeline: a body change, a signature change, deleting unused code, and a caller whose receiver type is unknown. Each scored precision 1.00 and recall 1.00. The fixture is small and uses constructs the resolver supports, so treat this as a correctness check rather than a general accuracy figure.
 
 ---
 
