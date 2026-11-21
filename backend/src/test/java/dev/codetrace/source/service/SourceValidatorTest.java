@@ -36,11 +36,11 @@ class SourceValidatorTest {
     void acceptsAndCanonicalizesPublicGithubUrls() {
         SourceValidator v = validator(resolvingTo("140.82.112.3"), List.of());
 
-        var ok = v.validate(SourceType.GIT_URL, "https://GitHub.com/Owner/Repo.git/");
+        var ok = v.validate(SourceType.GIT_URL, "https://GitHub.com/Owner/SourceRepository.git/");
 
-        assertThat(ok.location()).isEqualTo("https://github.com/Owner/Repo");
-        assertThat(ok.displayName()).isEqualTo("Owner/Repo");
-        assertThat(v.validate(SourceType.GIT_URL, "https://github.com/Owner/Repo").location())
+        assertThat(ok.location()).isEqualTo("https://github.com/Owner/SourceRepository");
+        assertThat(ok.displayName()).isEqualTo("Owner/SourceRepository");
+        assertThat(v.validate(SourceType.GIT_URL, "https://github.com/Owner/SourceRepository").location())
                 .isEqualTo(ok.location());
     }
 

@@ -8,7 +8,7 @@ import dev.codetrace.impact.repository.ImpactFindingRepository;
 import dev.codetrace.impact.repository.ImpactReportRepository.Report;
 import dev.codetrace.impact.service.ImpactReportService;
 import dev.codetrace.impact.service.ImpactReportService.Finding;
-import dev.codetrace.source.repository.SourceRepositoryRepository;
+import dev.codetrace.source.service.SourceRepositoryService;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
@@ -30,10 +30,10 @@ public class ReportController {
 
     private final ImpactReportService impact;
     private final ImpactFindingRepository findings;
-    private final SourceRepositoryRepository repositories;
+    private final SourceRepositoryService repositories;
     private final MarkdownReportRenderer renderer;
 
-    public ReportController(ImpactReportService impact, ImpactFindingRepository findings, SourceRepositoryRepository repositories,
+    public ReportController(ImpactReportService impact, ImpactFindingRepository findings, SourceRepositoryService repositories,
                             MarkdownReportRenderer renderer) {
         this.impact = impact;
         this.findings = findings;
@@ -46,7 +46,7 @@ public class ReportController {
         Report report = impact.completed(reportId); // 404 unknown, 409 until completed
         List<Finding> all = findings.all(report.id());
         ReportData data = new ReportData(report,
-                repositories.find(report.repositoryId()).map(SourceRepositoryRepository.Repo::displayName).orElse("repository"),
+                repositories.find(report.repositoryId()).map(dev.codetrace.source.model.SourceRepository::displayName).orElse("repository"),
                 impact.riskFactors(report),
                 all.stream().filter(f -> f.findingType().equals("CHANGED")).toList(),
                 all.stream().filter(f -> f.findingType().equals("AFFECTED")).toList(),

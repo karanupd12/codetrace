@@ -6,14 +6,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.stereotype.Repository;
 
 /**
  * Writes a job's results in one transaction: previous rows for the job are deleted first, so replays and retries
  * can never produce duplicates or a half-written result. The job flips to SUCCEEDED in the same transaction.
  */
-@Component
+@Repository
 public class IndexResultRepository {
     private final JdbcTemplate jdbc;
 
@@ -21,8 +20,8 @@ public class IndexResultRepository {
         this.jdbc = jdbc;
     }
 
-    @Transactional
-    public void write(UUID jobId, UUID repositoryId, String commitHash, IndexResult r) {
+    /** Replaces this job's stored results; returns the number of symbols stored. Call inside a transaction. */
+    public int write(UUID jobId, UUID repositoryId, String commitHash, IndexResult r) {
         for (String table : List.of("indexed_file", "code_symbol", "code_import", "code_reference", "parse_diagnostic")) {
             jdbc.update("delete from " + table + " where job_id = ?", jobId);
         }
@@ -79,12 +78,6 @@ public class IndexResultRepository {
                 insert into parse_diagnostic (job_id, path, severity, code, message, line)
                 values (?, ?, ?, ?, ?, ?)""", diags);
 
-        int stored = jdbc.queryForObject("select count(*) from code_symbol where job_id = ?", Integer.class, jobId);
-        jdbc.update("""
-                update index_job set status = 'SUCCEEDED', files_parsed = ?, files_skipped = ?, symbols_extracted = ?,
-                    parser_version = ?, extraction_version = ?, finished_at = now(), updated_at = now(),
-                    error_category = null, error_message = null where id = ?""",
-                r.filesParsed(), r.filesSkipped(), stored, r.parserVersion(), JavaSymbolExtractor.EXTRACTION_VERSION,
-                jobId);
+        return jdbc.queryForObject("select count(*) from code_symbol where job_id = ?", Integer.class, jobId);
     }
 }

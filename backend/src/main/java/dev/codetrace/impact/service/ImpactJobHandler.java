@@ -14,8 +14,8 @@ import dev.codetrace.jobs.JobFailureException.Category;
 import dev.codetrace.jobs.model.Job;
 import dev.codetrace.jobs.JobHandler;
 import dev.codetrace.jobs.model.JobOperation;
-import dev.codetrace.source.repository.SourceRepositoryRepository;
-import dev.codetrace.source.repository.SourceRepositoryRepository.Repo;
+import dev.codetrace.source.service.SourceRepositoryService;
+import dev.codetrace.source.model.SourceRepository;
 import org.eclipse.jgit.lib.Repository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,13 +35,13 @@ public class ImpactJobHandler implements JobHandler {
 
     private final ImpactReportRepository reports;
     private final ImpactReportWriteRepository writer;
-    private final SourceRepositoryRepository repositories;
+    private final SourceRepositoryService repositories;
     private final GitSourceManager git;
     private final ChangeDetector detector;
     private final ImpactAnalyzer analyzer;
     private final RiskAssessor assessor;
 
-    public ImpactJobHandler(ImpactReportRepository reports, ImpactReportWriteRepository writer, SourceRepositoryRepository repositories,
+    public ImpactJobHandler(ImpactReportRepository reports, ImpactReportWriteRepository writer, SourceRepositoryService repositories,
                             GitSourceManager git, ChangeDetector detector, ImpactAnalyzer analyzer, RiskAssessor assessor) {
         this.reports = reports;
         this.writer = writer;
@@ -66,7 +66,7 @@ public class ImpactJobHandler implements JobHandler {
             return;
         }
         if (!reports.markRunning(report.id())) return; // completed concurrently by another worker
-        Repo repo = repositories.find(report.repositoryId()).orElseThrow(
+        SourceRepository repo = repositories.find(report.repositoryId()).orElseThrow(
                 () -> new JobFailureException(Category.INVALID_SOURCE, "Repository no longer exists."));
         try (Repository repository = git.open(repo)) {
             ChangeSet changes = detector.detect(repository, report.baseCommit(), report.headCommit());

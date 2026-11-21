@@ -18,7 +18,7 @@ import dev.codetrace.jobs.model.Job;
 import dev.codetrace.jobs.model.JobKeys;
 import dev.codetrace.jobs.model.JobOperation;
 import dev.codetrace.jobs.service.JobService;
-import dev.codetrace.source.repository.SourceRepositoryRepository.Repo;
+import dev.codetrace.source.model.SourceRepository;
 import dev.codetrace.source.service.SourceRepositoryService;
 import java.util.List;
 import java.util.Set;
@@ -65,7 +65,7 @@ public class ImpactReportService {
      * one job. A completed report is returned as is; a failed one is queued again.
      */
     public Requested request(UUID repositoryId, String baseCommit, String headCommit, Integer depthParam) {
-        Repo repo = repositories.get(repositoryId);
+        SourceRepository repo = repositories.get(repositoryId);
         for (String[] c : List.of(new String[] {baseCommit, "baseCommit"}, new String[] {headCommit, "headCommit"})) {
             if (!Commits.isFullSha1(c[0])) throw ApiException.badRequest(c[1] + " must be a full 40-character commit id.");
         }
@@ -124,7 +124,7 @@ public class ImpactReportService {
         return json.read(r.riskFactorsJson(), RISK_FACTORS, List.of());
     }
 
-    private Snapshot publishedSnapshot(Repo repo, String commit, String side) {
+    private Snapshot publishedSnapshot(SourceRepository repo, String commit, String side) {
         return snapshots.latestPublished(repo.id(), commit).orElseThrow(() -> ApiException.conflict(
                 "Build the dependency graph for revision " + Commits.shortHash(commit) + " (" + side + ") first."));
     }

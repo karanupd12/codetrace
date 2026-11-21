@@ -24,8 +24,8 @@ import dev.codetrace.ingestion.git.GitSourceManager;
 import dev.codetrace.jobs.JobFailureException;
 import dev.codetrace.jobs.JobFailureException.Category;
 import dev.codetrace.jobs.model.Job;
-import dev.codetrace.source.repository.SourceRepositoryRepository;
-import dev.codetrace.source.repository.SourceRepositoryRepository.Repo;
+import dev.codetrace.source.service.SourceRepositoryService;
+import dev.codetrace.source.model.SourceRepository;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -37,7 +37,7 @@ import org.springframework.dao.DataAccessResourceFailureException;
 class ImpactJobHandlerTest {
     private final ImpactReportRepository reports = mock(ImpactReportRepository.class);
     private final ImpactReportWriteRepository writer = mock(ImpactReportWriteRepository.class);
-    private final SourceRepositoryRepository repositories = mock(SourceRepositoryRepository.class);
+    private final SourceRepositoryService repositories = mock(SourceRepositoryService.class);
     private final GitSourceManager git = mock(GitSourceManager.class);
     private final ChangeDetector detector = mock(ChangeDetector.class);
     private final ImpactAnalyzer analyzer = mock(ImpactAnalyzer.class);
@@ -60,7 +60,7 @@ class ImpactJobHandlerTest {
         when(job.id()).thenReturn(jobId);
         when(reports.findByJob(jobId)).thenReturn(Optional.of(report("REQUESTED", reportId, repoId, jobId)));
         when(reports.markRunning(reportId)).thenReturn(true);
-        when(repositories.find(repoId)).thenReturn(Optional.of(mock(Repo.class)));
+        when(repositories.find(repoId)).thenReturn(Optional.of(mock(SourceRepository.class)));
         when(git.open(any())).thenReturn(gitRepo);
     }
 

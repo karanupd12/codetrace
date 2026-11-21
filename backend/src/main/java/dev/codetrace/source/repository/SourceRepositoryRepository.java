@@ -1,5 +1,7 @@
 package dev.codetrace.source.repository;
 
+import dev.codetrace.source.model.Revision;
+import dev.codetrace.source.model.SourceRepository;
 import dev.codetrace.source.model.SourceType;
 import java.sql.Types;
 import java.time.OffsetDateTime;
@@ -11,13 +13,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public class SourceRepositoryRepository {
-    public record Repo(UUID id, SourceType sourceType, String location, String displayName, String syncStatus,
-                       String defaultBranch, String headCommit, OffsetDateTime createdAt) {
-    }
-
-    public record Revision(UUID id, String commitHash, String summary, OffsetDateTime authorTime) {
-    }
-
     private final JdbcClient jdbc;
 
     public SourceRepositoryRepository(JdbcClient jdbc) {
@@ -27,23 +22,23 @@ public class SourceRepositoryRepository {
     private static final String COLS =
             "id, source_type, location, display_name, sync_status, default_branch, head_commit, created_at";
 
-    public Repo insert(UUID id, SourceType type, String location, String displayName) {
+    public SourceRepository insert(UUID id, SourceType type, String location, String displayName) {
         jdbc.sql("insert into repository (id, source_type, location, display_name) values (:id, :t, :l, :d)")
                 .param("id", id).param("t", type.name()).param("l", location).param("d", displayName).update();
         return find(id).orElseThrow();
     }
 
-    public Optional<Repo> find(UUID id) {
+    public Optional<SourceRepository> find(UUID id) {
         return jdbc.sql("select " + COLS + " from repository where id = :id").param("id", id)
                 .query(SourceRepositoryRepository::mapRepo).optional();
     }
 
-    public Optional<Repo> findBySource(SourceType type, String location) {
+    public Optional<SourceRepository> findBySource(SourceType type, String location) {
         return jdbc.sql("select " + COLS + " from repository where source_type = :t and location = :l")
                 .param("t", type.name()).param("l", location).query(SourceRepositoryRepository::mapRepo).optional();
     }
 
-    public List<Repo> list(int limit) {
+    public List<SourceRepository> list(int limit) {
         return jdbc.sql("select " + COLS + " from repository order by created_at desc limit :n")
                 .param("n", limit).query(SourceRepositoryRepository::mapRepo).list();
     }
@@ -88,8 +83,8 @@ public class SourceRepositoryRepository {
                 .param("r", repositoryId).param("h", commitHash).query(Long.class).single() > 0;
     }
 
-    private static Repo mapRepo(java.sql.ResultSet rs, int i) throws java.sql.SQLException {
-        return new Repo(rs.getObject("id", UUID.class), SourceType.valueOf(rs.getString("source_type")),
+    private static SourceRepository mapRepo(java.sql.ResultSet rs, int i) throws java.sql.SQLException {
+        return new SourceRepository(rs.getObject("id", UUID.class), SourceType.valueOf(rs.getString("source_type")),
                 rs.getString("location"), rs.getString("display_name"), rs.getString("sync_status"),
                 rs.getString("default_branch"), rs.getString("head_commit"),
                 rs.getObject("created_at", OffsetDateTime.class));

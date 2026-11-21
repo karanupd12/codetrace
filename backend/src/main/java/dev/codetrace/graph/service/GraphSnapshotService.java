@@ -10,7 +10,7 @@ import dev.codetrace.jobs.model.Job;
 import dev.codetrace.jobs.model.JobKeys;
 import dev.codetrace.jobs.model.JobOperation;
 import dev.codetrace.jobs.service.JobService;
-import dev.codetrace.source.repository.SourceRepositoryRepository.Repo;
+import dev.codetrace.source.model.SourceRepository;
 import dev.codetrace.source.service.SourceRepositoryService;
 import java.util.List;
 import java.util.Optional;
@@ -38,7 +38,7 @@ public class GraphSnapshotService {
      * one is queued again.
      */
     public Requested requestBuild(UUID repositoryId, String commitHash) {
-        Repo repo = repositories.get(repositoryId);
+        SourceRepository repo = repositories.get(repositoryId);
         String commit = repositories.resolveRevision(repo, commitHash);
         IndexedRevision indexed = jobs.findSucceededIndex(repo.id(), commit).orElseThrow(
                 () -> ApiException.conflict("Index this revision first: no finished index job exists for it."));

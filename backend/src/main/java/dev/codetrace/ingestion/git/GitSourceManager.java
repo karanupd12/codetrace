@@ -3,7 +3,7 @@ package dev.codetrace.ingestion.git;
 import dev.codetrace.jobs.JobFailureException;
 import dev.codetrace.config.IngestionProperties;
 import dev.codetrace.jobs.JobFailureException.Category;
-import dev.codetrace.source.repository.SourceRepositoryRepository.Repo;
+import dev.codetrace.source.model.SourceRepository;
 import dev.codetrace.source.model.SourceType;
 import dev.codetrace.source.service.SourceValidator;
 import dev.codetrace.common.web.ApiException;
@@ -43,7 +43,7 @@ public class GitSourceManager {
     }
 
     /** Opens (cloning/fetching first when remote). The caller must close the returned repository. */
-    public Repository open(Repo repo) {
+    public Repository open(SourceRepository repo) {
         try {
             return repo.sourceType() == SourceType.GIT_URL ? openRemote(repo) : openLocal(repo);
         } catch (ApiException e) {
@@ -53,7 +53,7 @@ public class GitSourceManager {
         }
     }
 
-    private Repository openLocal(Repo repo) throws IOException {
+    private Repository openLocal(SourceRepository repo) throws IOException {
         // Re-validate: the filesystem may have changed since registration.
         SourceValidator.Validated v = validator.validate(SourceType.LOCAL, repo.location());
         Path gitDir = SourceValidator.gitDirOf(Path.of(v.location()));
@@ -63,7 +63,7 @@ public class GitSourceManager {
         return new FileRepositoryBuilder().setGitDir(gitDir.toFile()).setMustExist(true).build();
     }
 
-    private Repository openRemote(Repo repo) throws IOException {
+    private Repository openRemote(SourceRepository repo) throws IOException {
         SourceValidator.Validated v = validator.validate(SourceType.GIT_URL, repo.location());
         String url = v.location();
         Path dir = workspaceFor(repo.id());

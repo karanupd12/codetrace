@@ -22,7 +22,7 @@ import dev.codetrace.source.service.SourceRepositoryService;
 import dev.codetrace.source.service.SourceValidator;
 import dev.codetrace.ingestion.parser.JavaSymbolExtractor;
 import dev.codetrace.source.repository.SourceRepositoryRepository;
-import dev.codetrace.source.repository.SourceRepositoryRepository.Repo;
+import dev.codetrace.source.model.SourceRepository;
 import dev.codetrace.source.model.SourceType;
 import dev.codetrace.common.web.ApiException;
 import java.time.OffsetDateTime;
@@ -56,7 +56,7 @@ class GraphSnapshotServiceTest {
         service = new GraphSnapshotService(new SourceRepositoryService(repos, jobService, mock(SourceValidator.class)),
                 jobService, snapshots);
 
-        when(repos.find(repoId)).thenReturn(Optional.of(new Repo(repoId, SourceType.GIT_URL, "https://github.com/o/r", "o/r",
+        when(repos.find(repoId)).thenReturn(Optional.of(new SourceRepository(repoId, SourceType.GIT_URL, "https://github.com/o/r", "o/r",
                 "SYNCED", "main", COMMIT, OffsetDateTime.now())));
         when(repos.revisionExists(repoId, COMMIT)).thenReturn(true);
         when(jobs.findSucceededIndex(repoId, COMMIT)).thenReturn(Optional.of(
@@ -100,7 +100,7 @@ class GraphSnapshotServiceTest {
     @Test
     void malformedCommitsAre400AndUnsyncedRepositoriesAre409() {
         assertStatus(() -> service.requestBuild(repoId, "main"), HttpStatus.BAD_REQUEST);
-        when(repos.find(repoId)).thenReturn(Optional.of(new Repo(repoId, SourceType.GIT_URL, "https://github.com/o/r", "o/r",
+        when(repos.find(repoId)).thenReturn(Optional.of(new SourceRepository(repoId, SourceType.GIT_URL, "https://github.com/o/r", "o/r",
                 "PENDING", null, null, OffsetDateTime.now())));
         assertStatus(() -> service.requestBuild(repoId, null), HttpStatus.CONFLICT);
     }

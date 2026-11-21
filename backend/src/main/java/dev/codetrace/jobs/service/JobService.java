@@ -72,6 +72,12 @@ public class JobService {
         return jobs.listForRepository(repositoryId, limit);
     }
 
+    /** Marks an INDEX job finished with its counts; joins the caller's transaction so it commits with the results. */
+    public void completeIndex(UUID jobId, int filesParsed, int filesSkipped, int symbols, String parserVersion,
+                              int extractionVersion) {
+        jobs.markIndexSucceeded(jobId, filesParsed, filesSkipped, symbols, parserVersion, extractionVersion);
+    }
+
     public Optional<IndexedRevision> findSucceededIndex(UUID repositoryId, String commitHash) {
         return jobs.findSucceededIndex(repositoryId, commitHash);
     }

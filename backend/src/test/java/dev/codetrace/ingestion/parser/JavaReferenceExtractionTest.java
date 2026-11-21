@@ -95,7 +95,7 @@ class JavaReferenceExtractionTest {
     void receiverTypeComesFromDeclaredLocalsParametersAndFields() {
         FileExtraction x = parse("""
                 class A {
-                    private final Repo repo;
+                    private final SourceRepository repo;
                     void go(Order param) {
                         Cart cart = new Cart();
                         cart.add(param);
@@ -108,14 +108,14 @@ class JavaReferenceExtractionTest {
         String owner = "p.A#go(Order)";
         assertThat(call(x, owner, "add").receiverType()).isEqualTo("Cart");
         assertThat(call(x, owner, "total").receiverType()).isEqualTo("Order");
-        assertThat(call(x, owner, "save").receiverType()).isEqualTo("Repo");
-        assertThat(call(x, owner, "flush").receiverType()).isEqualTo("Repo");
+        assertThat(call(x, owner, "save").receiverType()).isEqualTo("SourceRepository");
+        assertThat(call(x, owner, "flush").receiverType()).isEqualTo("SourceRepository");
         assertThat(call(x, owner, "add").receiverKind()).isEqualTo("TYPE");
     }
 
     @Test
     void aLocalShadowsAFieldOfTheSameName() {
-        FileExtraction x = parse("class A { Repo r; void go() { Cache r = null; r.get(); } }");
+        FileExtraction x = parse("class A { SourceRepository r; void go() { Cache r = null; r.get(); } }");
 
         assertThat(call(x, "p.A#go()", "get").receiverType()).isEqualTo("Cache");
     }

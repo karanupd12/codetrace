@@ -100,6 +100,17 @@ public class JobRepository {
                 .param("id", id).update();
     }
 
+    /** Completes an INDEX job with its result counts; runs in the caller's transaction with the stored results. */
+    public void markIndexSucceeded(UUID id, int filesParsed, int filesSkipped, int symbols, String parserVersion,
+                                   int extractionVersion) {
+        jdbc.sql("""
+                update index_job set status = 'SUCCEEDED', files_parsed = :fp, files_skipped = :fs, symbols_extracted = :sy,
+                    parser_version = :pv, extraction_version = :ev, finished_at = now(), updated_at = now(),
+                    error_category = null, error_message = null where id = :id""")
+                .param("fp", filesParsed).param("fs", filesSkipped).param("sy", symbols).param("pv", parserVersion)
+                .param("ev", extractionVersion).param("id", id).update();
+    }
+
     /** Back to QUEUED for a delayed retry; the sweeper republishes it after the retry delay. */
     public void markForRetry(UUID id, String category, String message) {
         jdbc.sql("""

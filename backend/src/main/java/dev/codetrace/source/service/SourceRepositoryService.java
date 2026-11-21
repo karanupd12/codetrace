@@ -9,14 +9,16 @@ import dev.codetrace.jobs.model.JobOperation;
 import dev.codetrace.jobs.service.JobService;
 import dev.codetrace.source.model.SourceType;
 import dev.codetrace.source.repository.SourceRepositoryRepository;
-import dev.codetrace.source.repository.SourceRepositoryRepository.Repo;
+import dev.codetrace.source.model.Revision;
+import dev.codetrace.source.model.SourceRepository;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SourceRepositoryService {
-    public record Registered(Repo repo, Job syncJob, boolean created) {
+    public record Registered(SourceRepository repo, Job syncJob, boolean created) {
     }
 
     private final SourceRepositoryRepository repos;
@@ -33,11 +35,11 @@ public class SourceRepositoryService {
         SourceValidator.Validated v = validator.validate(type, location);
         var existing = repos.findBySource(v.type(), v.location());
         if (existing.isPresent()) {
-            Repo repo = existing.get();
+            SourceRepository repo = existing.get();
             return new Registered(repo, submitSync(repo).job(), false);
         }
         String name = displayName != null && !displayName.isBlank() ? displayName.trim() : v.displayName();
-        Repo repo;
+        SourceRepository repo;
         try {
             repo = repos.insert(UUID.randomUUID(), v.type(), v.location(), name);
         } catch (org.springframework.dao.DuplicateKeyException race) {
@@ -46,22 +48,27 @@ public class SourceRepositoryService {
         return new Registered(repo, submitSync(repo).job(), true);
     }
 
-    public Repo get(UUID id) {
+    public SourceRepository get(UUID id) {
         return repos.find(id).orElseThrow(() -> ApiException.notFound("Repository not found."));
     }
 
-    public List<Repo> list() {
+    public List<SourceRepository> list() {
         return repos.list(100);
     }
 
-    public List<SourceRepositoryRepository.Revision> revisions(UUID repositoryId) {
+    /** For background work: the repository may have been deleted since the job was queued. */
+    public Optional<SourceRepository> find(UUID id) {
+        return repos.find(id);
+    }
+
+    public List<Revision> revisions(UUID repositoryId) {
         get(repositoryId);
         return repos.listRevisions(repositoryId, 200);
     }
 
     /** Re-run the sync (fetch new commits). Idempotent for jobs that are already queued or running. */
     public Job resync(UUID repositoryId) {
-        Repo repo = get(repositoryId);
+        SourceRepository repo = get(repositoryId);
         Job job = submitSync(repo).job();
         if (jobs.rerun(job.id())) repos.markSyncPending(repo.id());
         return jobs.get(job.id());
@@ -69,7 +76,7 @@ public class SourceRepositoryService {
 
     /** Request indexing of one pinned commit (defaults to the synced HEAD). */
     public Job requestIndex(UUID repositoryId, String commitHash) {
-        Repo repo = get(repositoryId);
+        SourceRepository repo = get(repositoryId);
         if (!"SYNCED".equals(repo.syncStatus())) {
             throw ApiException.conflict("Repository is not synced yet (status " + repo.syncStatus() + ").");
         }
@@ -87,7 +94,7 @@ public class SourceRepositoryService {
      * The commit a request refers to: blank means the synced HEAD, otherwise a full commit id that sync has
      * discovered. 409 if a blank request meets an unsynced repository, 400 for a malformed id, 404 for an unknown one.
      */
-    public String resolveRevision(Repo repo, String commitHash) {
+    public String resolveRevision(SourceRepository repo, String commitHash) {
         String commit;
         if (commitHash == null || commitHash.isBlank()) {
             if (!"SYNCED".equals(repo.syncStatus())) {
@@ -106,7 +113,7 @@ public class SourceRepositoryService {
     }
 
     /** A full commit id named by {@code field} that sync has discovered: 400 if malformed, 404 if unknown. */
-    public String requireRevision(Repo repo, String commitHash, String field) {
+    public String requireRevision(SourceRepository repo, String commitHash, String field) {
         if (!Commits.isFullSha1(commitHash)) {
             throw ApiException.badRequest(field + " must be a full 40-character commit id.");
         }
@@ -118,12 +125,22 @@ public class SourceRepositoryService {
         return commit;
     }
 
+    /** Records what a sync found: the discovered commits, then the default branch and HEAD. */
+    public void recordSync(UUID repositoryId, String defaultBranch, String headCommit, List<Revision> discovered) {
+        for (Revision r : discovered) repos.upsertRevision(repositoryId, r.commitHash(), r.summary(), r.authorTime());
+        repos.markSynced(repositoryId, defaultBranch, headCommit);
+    }
+
+    public void markSyncFailed(UUID repositoryId) {
+        repos.markSyncFailed(repositoryId);
+    }
+
     public List<Job> jobsFor(UUID repositoryId) {
         get(repositoryId);
         return jobs.listForRepository(repositoryId, 50);
     }
 
-    private JobService.Submission submitSync(Repo repo) {
+    private JobService.Submission submitSync(SourceRepository repo) {
         return jobs.submit(repo.id(), JobOperation.SYNC, null, JobKeys.sync(repo.id()));
     }
 

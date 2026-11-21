@@ -6,7 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import dev.codetrace.jobs.model.Job;
-import dev.codetrace.source.repository.SourceRepositoryRepository;
+import dev.codetrace.source.service.SourceRepositoryService;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 class SyncJobHandlerTest {
     @Test
     void permanentFailureMarksTheRepositorySyncFailed() {
-        SourceRepositoryRepository repos = mock(SourceRepositoryRepository.class);
+        SourceRepositoryService repos = mock(SourceRepositoryService.class);
         SyncJobHandler handler = new SyncJobHandler(repos, mock(GitSourceManager.class), mock(RevisionDiscovery.class));
         UUID repoId = UUID.randomUUID();
         Job job = new Job(UUID.randomUUID(), repoId, "SYNC", "FAILED", null, 1, null, null, OffsetDateTime.now(), null,
