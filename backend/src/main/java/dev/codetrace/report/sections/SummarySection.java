@@ -3,7 +3,6 @@ package dev.codetrace.report.sections;
 import static dev.codetrace.report.MarkdownText.cell;
 
 import dev.codetrace.impact.ImpactReportDao.Report;
-import dev.codetrace.impact.RiskSignal.RiskFactor;
 import dev.codetrace.report.MarkdownText;
 import dev.codetrace.report.ReportData;
 import dev.codetrace.report.ReportSection;
@@ -37,10 +36,5 @@ public class SummarySection implements ReportSection {
                 .map(f -> List.of(cell(f.signal()), f.points() + " / " + f.maxPoints(), cell(f.reason()))).toList();
         sb.append(MarkdownText.table(List.of("Signal", "Points", "Finding"), rows)).append('\n');
         return sb.toString();
-    }
-
-    /** Signals that contributed, for tests and other sections. */
-    static List<RiskFactor> contributing(ReportData d) {
-        return d.factors().stream().filter(f -> f.points() > 0).toList();
     }
 }

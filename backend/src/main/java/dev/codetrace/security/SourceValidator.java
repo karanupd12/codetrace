@@ -174,8 +174,4 @@ public class SourceValidator {
         }
         return null;
     }
-
-    public List<String> allowedHosts() {
-        return props.allowedHosts();
-    }
 }

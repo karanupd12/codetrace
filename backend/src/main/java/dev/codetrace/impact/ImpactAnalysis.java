@@ -17,10 +17,6 @@ public record ImpactAnalysis(String algorithmVersion, int depth, List<ChangedEnt
         public SymbolRef any() {
             return head != null ? head : base;
         }
-
-        public boolean isRemoved() {
-            return kind == Kind.REMOVED;
-        }
     }
 
     /** One dependency edge on the chain from an affected symbol to the change; carries its own evidence. */

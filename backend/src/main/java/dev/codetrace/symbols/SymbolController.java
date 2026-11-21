@@ -12,8 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Interim M2 read API over a job's extracted symbols. In M3 these become snapshot-scoped graph node queries.
- * All results are bounded (limit is capped).
+ * Read API over the symbols and diagnostics extracted by one index job. All results are bounded (limit is capped).
  */
 @RestController
 @Profile("api")

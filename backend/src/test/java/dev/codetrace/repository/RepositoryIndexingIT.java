@@ -40,7 +40,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * M2 gate, end to end: API + worker (both profiles in one context) against real PostgreSQL and Redis.
+ * End to end: API + worker (both profiles in one context) against real PostgreSQL and Redis.
  * Register a local repo -> worker syncs -> index the pinned revision -> query symbols/diagnostics, then prove
  * idempotency, redelivery safety and failure handling.
  */

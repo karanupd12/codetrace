@@ -99,10 +99,6 @@ public class ImpactService {
         return reports.find(reportId).orElseThrow(() -> ApiException.notFound("Impact report not found."));
     }
 
-    public Job jobOf(Report report) {
-        return jobs.find(report.jobId()).orElseThrow();
-    }
-
     public List<Report> list(UUID repositoryId) {
         repos.find(repositoryId).orElseThrow(() -> ApiException.notFound("Repository not found."));
         return reports.listForRepository(repositoryId, 50);

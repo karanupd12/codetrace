@@ -322,9 +322,6 @@ export const requestImpactReport = (repoId: string, baseCommit: string, headComm
 export const listImpactReports = (repoId: string, signal?: AbortSignal) =>
   request<ImpactReport[]>(`/api/v1/repositories/${repoId}/impact-reports`, undefined, signal);
 
-export const getImpactReport = (id: string, signal?: AbortSignal) =>
-  request<ImpactReport>(`/api/v1/impact-reports/${id}`, undefined, signal);
-
 export const listFindings = (
   reportId: string,
   p: { type?: FindingType; module?: string; limit: number; offset: number },

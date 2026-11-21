@@ -44,10 +44,6 @@ public record ChangeSet(String baseCommit, String headCommit, List<FileChange> f
         return files.stream().filter(f -> f.isJava() && !f.binary()).toList();
     }
 
-    public int commentOnlyEdits() {
-        return javaFiles().stream().mapToInt(FileChange::ignoredHunks).sum();
-    }
-
     public int nonJavaFileCount() {
         return (int) files.stream().filter(f -> !f.isJava() || f.binary()).count();
     }
