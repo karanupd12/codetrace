@@ -58,7 +58,7 @@ import org.testcontainers.utility.DockerImageName;
 @ActiveProfiles({"api", "worker"})
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-class ImpactAnalyzerIT {
+class ImpactIT {
 
     @Container
     static final PostgreSQLContainer<?> PG = new PostgreSQLContainer<>(
@@ -174,6 +174,8 @@ class ImpactAnalyzerIT {
             commits.add(GitFixtures.commit(repo, files(totalReshaped, ORDER, true), commits.get(1), "total takes quantity"));
             commits.add(GitFixtures.commit(repo, files(totalReshaped, ORDER, false), commits.get(2), "drop Unrelated"));
             commits.add(GitFixtures.commit(repo, files(totalReshaped, priceChanged, false), commits.get(3), "price tweak"));
+            // a commit that is never indexed or graphed, for the "build the graph first" precondition
+            commits.add(GitFixtures.commit(repo, files(totalReshaped, priceChanged.replace("+ 0", "+ 1"), false), commits.get(4), "never graphed"));
         }
     }
 
@@ -207,6 +209,10 @@ class ImpactAnalyzerIT {
     @Autowired ChangeDetector detector;
     @Autowired ImpactAnalyzer analyzer;
     @Autowired RiskAssessor assessor;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+    static UUID reportId;
+    static UUID reportJobId;
 
     // ---- helpers ------------------------------------------------------------------------------------------------
 
@@ -275,7 +281,7 @@ class ImpactAnalyzerIT {
         awaitJob(body.at("/syncJob/id").asText());
         repoId = UUID.fromString(body.at("/repository/id").asText());
 
-        for (String commit : commits) {
+        for (String commit : commits.subList(0, 5)) { // the sixth commit stays unbuilt on purpose
             ResponseEntity<String> ix = post("/api/v1/repositories/" + repoId + "/index-jobs", "{\"commitHash\":\"" + commit + "\"}");
             assertThat(ix.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
             awaitJob(json.readTree(ix.getBody()).get("id").asText());
@@ -389,5 +395,205 @@ class ImpactAnalyzerIT {
             assertThat(names(a.affected())).containsExactly("shop.Pricing#total(double)");
             assertThat(a.depth()).isEqualTo(1);
         }
+    }
+
+    // ---- API ----------------------------------------------------------------------------------------------------
+
+    private String body(int base, int head) throws Exception {
+        return json.writeValueAsString(Map.of("baseCommit", commits.get(base), "headCommit", commits.get(head)));
+    }
+
+    private String reports() {
+        return "/api/v1/repositories/" + repoId + "/impact-reports";
+    }
+
+    private long count(String sql, Object... args) {
+        return jdbc.queryForObject(sql, Long.class, args);
+    }
+
+    @Test
+    @Order(8)
+    void invalidRequestsAreRejectedBeforeAnyWork() throws Exception {
+        assertThat(post(reports(), "{\"baseCommit\":\"nope\",\"headCommit\":\"" + commits.get(1) + "\"}").getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(post(reports(), "{\"headCommit\":\"" + commits.get(1) + "\"}").getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(post(reports(), body(1, 1)).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST); // same revision twice
+        assertThat(post(reports(), "{\"baseCommit\":\"" + commits.get(0) + "\",\"headCommit\":\"" + commits.get(1)
+                + "\",\"depth\":99}").getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(post(reports(), "{\"baseCommit\":\"" + "e".repeat(40) + "\",\"headCommit\":\"" + commits.get(1) + "\"}")
+                .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(post("/api/v1/repositories/" + UUID.randomUUID() + "/impact-reports", body(0, 1)).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(count("select count(*) from impact_report")).isZero();
+    }
+
+    @Test
+    @Order(9)
+    void aRevisionWithoutAPublishedGraphCannotBeAnalysed() throws Exception {
+        ResponseEntity<String> head = post(reports(), body(4, 5));
+        ResponseEntity<String> base = post(reports(), body(5, 4));
+
+        assertThat(head.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(head.getBody()).contains("Build the dependency graph for revision " + commits.get(5).substring(0, 7)).contains("head");
+        assertThat(base.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(base.getBody()).contains("(base)");
+        assertThat(count("select count(*) from impact_report")).isZero();
+    }
+
+    @Test
+    @Order(10)
+    void aReportIsComputedByTheWorkerAndExposesItsFindings() throws Exception {
+        ResponseEntity<String> res = post(reports(), body(0, 1));
+
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        JsonNode created = json.readTree(res.getBody());
+        reportId = UUID.fromString(created.at("/report/id").asText());
+        reportJobId = UUID.fromString(created.at("/job/id").asText());
+        assertThat(created.at("/job/operation").asText()).isEqualTo("IMPACT");
+        awaitJob(reportJobId.toString());
+
+        JsonNode report = get("/api/v1/impact-reports/" + reportId);
+        assertThat(report.get("status").asText()).isEqualTo("COMPLETED");
+        assertThat(report.get("algorithmVersion").asText()).isEqualTo("impact-1");
+        assertThat(report.get("baseCommit").asText()).isEqualTo(commits.get(0));
+        assertThat(report.get("headCommit").asText()).isEqualTo(commits.get(1));
+        assertThat(report.get("baseSnapshotId").asText()).isEqualTo(snapshots.get(commits.get(0)).toString());
+        assertThat(report.get("headSnapshotId").asText()).isEqualTo(snapshots.get(commits.get(1)).toString());
+        assertThat(report.get("changedCount").asInt()).isEqualTo(1);
+        assertThat(report.get("affectedCount").asInt()).isEqualTo(4);
+        assertThat(report.get("testsAffectedCount").asInt()).isEqualTo(1);
+        assertThat(report.get("possibleCount").asInt()).isZero();
+        assertThat(report.get("truncated").asBoolean()).isFalse();
+        assertThat(report.get("riskFactors")).hasSize(7);
+        assertThat(report.get("riskScore").asInt()).isBetween(0, 100);
+        assertThat(report.get("riskLevel").asText()).isIn("LOW", "MEDIUM", "HIGH", "CRITICAL");
+        // the score is the sum of the factors, as reported
+        int sum = 0;
+        for (JsonNode f : report.get("riskFactors")) sum += f.get("points").asInt();
+        assertThat(report.get("riskScore").asInt()).isEqualTo(Math.min(100, sum));
+
+        JsonNode affected = get("/api/v1/impact-reports/" + reportId + "/findings?type=AFFECTED");
+        assertThat(affected.get("total").asInt()).isEqualTo(4);
+        JsonNode first = affected.get("items").get(0);
+        assertThat(first.get("distance").asInt()).isEqualTo(1);
+        assertThat(first.get("name").asText()).isEqualTo("shop.Pricing#total(double)");
+        assertThat(first.get("changedSymbol").asText()).isEqualTo("shop.Pricing#tax(double)");
+        assertThat(first.at("/chain/0/path").asText()).isNotBlank();
+        assertThat(affected.get("items").get(3).get("test").asBoolean()).isTrue();
+
+        assertThat(get("/api/v1/impact-reports/" + reportId + "/findings?type=CHANGED").get("items").get(0).get("changeKind").asText())
+                .isEqualTo("MODIFIED");
+        assertThat(get("/api/v1/impact-reports/" + reportId + "/findings?type=AFFECTED&module=web").get("total").asInt()).isEqualTo(2);
+        JsonNode page = get("/api/v1/impact-reports/" + reportId + "/findings?type=AFFECTED&limit=2&offset=2");
+        assertThat(page.get("items")).hasSize(2);
+        assertThat(page.get("total").asInt()).isEqualTo(4);
+        assertThat(rest.getForEntity("/api/v1/impact-reports/" + reportId + "/findings?type=NOPE", String.class).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(get(reports()).get(0).get("id").asText()).isEqualTo(reportId.toString());
+    }
+
+    @Test
+    @Order(11)
+    void repeatingTheRequestReturnsTheSameReportAndJobWithoutNewWork() throws Exception {
+        long jobsBefore = count("select count(*) from index_job where operation = 'IMPACT'");
+
+        JsonNode again = json.readTree(post(reports(), body(0, 1)).getBody());
+
+        assertThat(again.at("/report/id").asText()).isEqualTo(reportId.toString());
+        assertThat(again.at("/job/id").asText()).isEqualTo(reportJobId.toString());
+        assertThat(again.at("/report/status").asText()).isEqualTo("COMPLETED");
+        assertThat(count("select count(*) from impact_report")).isEqualTo(1);
+        assertThat(count("select count(*) from index_job where operation = 'IMPACT'")).isEqualTo(jobsBefore);
+    }
+
+    @Test
+    @Order(12)
+    void aDifferentDepthIsADifferentReport() throws Exception {
+        JsonNode shallow = json.readTree(post(reports(), json.writeValueAsString(Map.of("baseCommit", commits.get(0),
+                "headCommit", commits.get(1), "depth", 1))).getBody());
+        awaitJob(shallow.at("/job/id").asText());
+
+        assertThat(shallow.at("/report/id").asText()).isNotEqualTo(reportId.toString());
+        assertThat(get("/api/v1/impact-reports/" + shallow.at("/report/id").asText()).get("affectedCount").asInt()).isEqualTo(1);
+        assertThat(count("select count(*) from impact_report")).isEqualTo(2);
+    }
+
+    @Test
+    @Order(13)
+    void aSecondScenarioReportShowsTheBreakingApiFactor() throws Exception {
+        JsonNode created = json.readTree(post(reports(), body(1, 2)).getBody());
+        awaitJob(created.at("/job/id").asText());
+
+        JsonNode report = get("/api/v1/impact-reports/" + created.at("/report/id").asText());
+        JsonNode breaking = null;
+        for (JsonNode f : report.get("riskFactors")) if (f.get("signal").asText().equals("03-breaking-api")) breaking = f;
+        assertThat(breaking).isNotNull();
+        assertThat(breaking.get("points").asInt()).isEqualTo(20);
+        assertThat(breaking.get("reason").asText()).contains("shop.Pricing#total(double)");
+        JsonNode changed = get("/api/v1/impact-reports/" + created.at("/report/id").asText() + "/findings?type=CHANGED");
+        assertThat(changed.get("total").asInt()).isEqualTo(2);
+    }
+
+    @Test
+    @Order(14)
+    void aCompletedReportIsImmutable() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> jdbc.update("update impact_finding set name = 'tampered' where report_id = ?", reportId))
+                .hasMessageContaining("immutable");
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> jdbc.update("delete from impact_finding where report_id = ?", reportId))
+                .hasMessageContaining("immutable");
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> jdbc.update("insert into impact_finding (report_id, finding_type, ordinal, name, change_kind)"
+                                + " values (?, 'CHANGED', 999, 'late', 'ADDED')", reportId))
+                .hasMessageContaining("immutable");
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> jdbc.update("update impact_report set risk_score = 0 where id = ?", reportId))
+                .hasMessageContaining("immutable");
+    }
+
+    @Test
+    @Order(15)
+    void unknownReportsAre404AndUnfinishedOnesAreNotReadable() throws Exception {
+        assertThat(rest.getForEntity("/api/v1/impact-reports/" + UUID.randomUUID(), String.class).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(rest.getForEntity("/api/v1/impact-reports/" + UUID.randomUUID() + "/findings", String.class).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(rest.getForEntity("/api/v1/repositories/" + UUID.randomUUID() + "/impact-reports", String.class).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    @Order(15)
+    void theMarkdownReportIsDownloadableAndNamesItsSnapshots() {
+        ResponseEntity<String> res = rest.getForEntity("/api/v1/impact-reports/" + reportId + "/report.md", String.class);
+
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(res.getHeaders().getContentType().toString()).startsWith("text/markdown");
+        assertThat(res.getHeaders().getFirst("Content-Disposition"))
+                .isEqualTo("attachment; filename=\"impact-" + commits.get(0).substring(0, 7) + "-" + commits.get(1).substring(0, 7) + ".md\"");
+        String md = res.getBody();
+        assertThat(md).startsWith("# Change impact report")
+                .contains("| Base graph snapshot | `" + snapshots.get(commits.get(0)) + "` |")
+                .contains("| Head graph snapshot | `" + snapshots.get(commits.get(1)) + "` |")
+                .contains("| Algorithm | `impact-1` |")
+                .contains("| MODIFIED | `shop.Pricing#tax(double)` |")
+                .contains("### Tests to run (1)")
+                .contains("`shopweb.CheckoutTest#paysTheTotal()`");
+        // the stored report renders identically every time
+        assertThat(rest.getForEntity("/api/v1/impact-reports/" + reportId + "/report.md", String.class).getBody()).isEqualTo(md);
+        assertThat(rest.getForEntity("/api/v1/impact-reports/" + UUID.randomUUID() + "/report.md", String.class).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    @Order(16)
+    void deletingTheRepositoryRemovesItsReportsAndFindings() {
+        assertThat(count("select count(*) from impact_finding")).isPositive();
+
+        jdbc.update("delete from repository where id = ?", repoId);
+
+        assertThat(count("select count(*) from impact_report")).isZero();
+        assertThat(count("select count(*) from impact_finding")).isZero();
     }
 }
