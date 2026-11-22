@@ -41,7 +41,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class ImpactAnalyzer {
-    public static final String ALGORITHM_VERSION = "impact-2"; // 2: edits to comments and whitespace no longer mark symbols as changed
+    // 2: edits to comments and whitespace no longer mark symbols as changed; 3: test classes named after changed code
+    public static final String ALGORITHM_VERSION = "impact-3";
     private static final int MAX_POSSIBLE = 200;
 
     private final ChangedSymbolMapper mapper;
@@ -82,11 +83,13 @@ public class ImpactAnalyzer {
                 .map(c -> new ChangedEntry(c.kind(), c.base(), c.head(), c.base() == null ? 0 : direct.getOrDefault(c.base().nodeId(), 0)))
                 .toList();
 
-        List<AffectedSymbol> affected = describe(baseSnapshot, radius.affected(), seeds);
+        List<AffectedSymbol> affected = new ArrayList<>(describe(baseSnapshot, radius.affected(), seeds));
+        boolean truncated = radius.truncated() | addNamedTests(baseSnapshot, seeds, affected);
+        affected.sort(BY_DISTANCE);
         List<PossibleDependent> possible = possibleDependents(baseSnapshot, seeds, affected);
 
-        return new ImpactAnalysis(ALGORITHM_VERSION, depth, changed, affected, possible, mapping.unmappedHunks(),
-                changes.nonJavaFileCount(), radius.truncated());
+        return new ImpactAnalysis(ALGORITHM_VERSION, depth, changed, List.copyOf(affected), possible,
+                mapping.unmappedHunks(), changes.nonJavaFileCount(), truncated);
     }
 
     /** The declarations of the given files in a snapshot, grouped by file. */
@@ -117,9 +120,83 @@ public class ImpactAnalyzer {
                     SourcePaths.displayModule(n.path()), SourcePaths.isTestPath(n.path()), a.distance(), a.certain(),
                     a.confidence(), seed == null ? "" : seed.base().qualifiedName(), chain));
         }
-        out.sort(Comparator.comparingInt(AffectedSymbol::distance).thenComparing(AffectedSymbol::qualifiedName)
-                .thenComparing(AffectedSymbol::signature));
+        out.sort(BY_DISTANCE);
         return List.copyOf(out);
+    }
+
+    private static final Comparator<AffectedSymbol> BY_DISTANCE = Comparator.comparingInt(AffectedSymbol::distance)
+            .thenComparing(AffectedSymbol::qualifiedName).thenComparing(AffectedSymbol::signature);
+
+    /** Where a test link starts: a changed or affected production symbol and how it is linked to the change. */
+    private record LinkSource(UUID nodeId, String nodeType, String changedSymbol, boolean certain, double confidence,
+                              List<Hop> chain) {
+    }
+
+    /**
+     * Adds the test classes named after the class of each changed or affected production symbol (TESTS edges), unless
+     * one of their test methods is already affected. The chain shows the naming link and, for a member, its class.
+     *
+     * @return whether the result cap stopped the additions
+     */
+    private boolean addNamedTests(UUID snapshot, Map<UUID, ChangedSymbol> seeds, List<AffectedSymbol> affected) {
+        List<LinkSource> sources = new ArrayList<>();
+        for (ChangedSymbol c : seeds.values()) {
+            SymbolRef b = c.base();
+            if (!SourcePaths.isTestPath(b.path())) {
+                sources.add(new LinkSource(b.nodeId(), b.nodeType(), b.qualifiedName(), true, 1.0, List.of()));
+            }
+        }
+        for (AffectedSymbol a : affected) {
+            if (!a.test()) sources.add(new LinkSource(a.nodeId(), a.nodeType(), a.changedSymbol(), a.certain(), a.confidence(), a.chain()));
+        }
+        if (sources.isEmpty()) return false;
+
+        int cap = limits.maxAffected() * 10;
+        Map<UUID, EdgeView> containerOf = new LinkedHashMap<>();
+        List<UUID> members = sources.stream().filter(s -> !"TYPE".equals(s.nodeType())).map(LinkSource::nodeId).toList();
+        for (EdgeView e : graph.containersOf(snapshot, members, cap)) containerOf.putIfAbsent(e.dstId(), e);
+        Map<UUID, List<LinkSource>> byType = new LinkedHashMap<>();
+        for (LinkSource s : sources) {
+            UUID type = "TYPE".equals(s.nodeType()) ? s.nodeId()
+                    : containerOf.containsKey(s.nodeId()) ? containerOf.get(s.nodeId()).srcId() : null;
+            if (type != null) byType.computeIfAbsent(type, k -> new ArrayList<>()).add(s);
+        }
+
+        Set<UUID> known = new LinkedHashSet<>(seeds.keySet());
+        affected.forEach(a -> known.add(a.nodeId()));
+        Map<UUID, AffectedSymbol> added = new LinkedHashMap<>();
+        List<EdgeView> links = graph.testLinksTo(snapshot, byType.keySet(), cap);
+        Map<UUID, NodeView> tests = new LinkedHashMap<>();
+        graph.nodes(snapshot, links.stream().map(EdgeView::srcId).distinct().toList()).forEach(n -> tests.put(n.id(), n));
+        for (EdgeView link : links) {
+            NodeView test = tests.get(link.srcId());
+            if (test == null || known.contains(test.id()) || hasAffectedMember(test, affected)) continue;
+            for (LinkSource s : byType.get(link.dstId())) {
+                List<Hop> chain = new ArrayList<>();
+                chain.add(hop(link));
+                if (!"TYPE".equals(s.nodeType())) chain.add(hop(containerOf.get(s.nodeId())));
+                chain.addAll(s.chain());
+                AffectedSymbol candidate = new AffectedSymbol(test.id(), test.nodeType(), test.qualifiedName(),
+                        test.signature(), test.path(), test.startLine(), SourcePaths.displayModule(test.path()), true,
+                        chain.size(), s.certain() && "RESOLVED".equals(link.resolution()),
+                        Math.min(s.confidence(), link.confidence()), s.changedSymbol(), List.copyOf(chain));
+                AffectedSymbol current = added.get(test.id());
+                if (current == null || candidate.distance() < current.distance()
+                        || (candidate.distance() == current.distance() && candidate.confidence() > current.confidence())) {
+                    added.put(test.id(), candidate);
+                }
+            }
+        }
+        for (AffectedSymbol a : added.values()) {
+            if (affected.size() >= limits.maxAffected()) return true;
+            affected.add(a);
+        }
+        return false;
+    }
+
+    private static boolean hasAffectedMember(NodeView type, List<AffectedSymbol> affected) {
+        String prefix = type.qualifiedName() + "#";
+        return affected.stream().anyMatch(a -> a.qualifiedName().startsWith(prefix));
     }
 
     private static Hop hop(EdgeView e) {

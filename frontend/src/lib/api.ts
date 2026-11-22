@@ -86,7 +86,7 @@ export const isActive = (s: JobStatus) => s === "QUEUED" || s === "RUNNING";
 
 export type SnapshotStatus = "REQUESTED" | "BUILDING" | "VALIDATING" | "PUBLISHED" | "FAILED";
 export type Resolution = "RESOLVED" | "AMBIGUOUS" | "UNRESOLVED";
-export type EdgeType = "CONTAINS" | "CALLS" | "REFERENCES" | "EXTENDS" | "IMPLEMENTS" | "IMPORTS";
+export type EdgeType = "CONTAINS" | "CALLS" | "REFERENCES" | "EXTENDS" | "IMPLEMENTS" | "IMPORTS" | "TESTS";
 export type NodeType = "FILE" | "PACKAGE" | "TYPE" | "METHOD" | "FIELD";
 
 export type Snapshot = {

@@ -9,8 +9,8 @@ import java.util.TreeSet;
 
 /** Parsing and defaults for graph query parameters supplied by API clients. */
 final class GraphQueryParams {
-    static final Set<String> DEFAULT_TYPES = Set.of("CALLS", "REFERENCES", "EXTENDS", "IMPLEMENTS", "IMPORTS");
-    static final Set<String> ALL_TYPES = Set.of("CONTAINS", "CALLS", "REFERENCES", "EXTENDS", "IMPLEMENTS", "IMPORTS");
+    static final Set<String> DEFAULT_TYPES = Set.of("CALLS", "REFERENCES", "EXTENDS", "IMPLEMENTS", "IMPORTS", "TESTS");
+    static final Set<String> ALL_TYPES = Set.of("CONTAINS", "CALLS", "REFERENCES", "EXTENDS", "IMPLEMENTS", "IMPORTS", "TESTS");
     static final Set<String> ALL_STATES = Set.of("RESOLVED", "AMBIGUOUS", "UNRESOLVED");
     static final Set<String> TRAVERSABLE_STATES = Set.of("RESOLVED", "AMBIGUOUS");
     static final Set<String> NODE_TYPES = Set.of("FILE", "PACKAGE", "TYPE", "METHOD", "FIELD");

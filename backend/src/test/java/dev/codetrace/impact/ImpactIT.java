@@ -136,6 +136,15 @@ class ImpactIT {
                 }
             }
             """;
+    /** Named after Pricing but never calls it: only the naming convention links it to Pricing. */
+    private static final String PRICING_TEST = """
+            package shop;
+
+            public class PricingTest {
+                public void ratesArePositive() {
+                }
+            }
+            """;
     private static final String CHAIN = """
             package shopweb;
 
@@ -160,6 +169,7 @@ class ImpactIT {
         m.put("web/src/main/java/shopweb/Checkout.java", Entry.file(CHECKOUT));
         m.put("web/src/main/java/shopweb/Chain.java", Entry.file(CHAIN));
         m.put("web/src/test/java/shopweb/CheckoutTest.java", Entry.file(CHECKOUT_TEST));
+        m.put("core/src/test/java/shop/PricingTest.java", Entry.file(PRICING_TEST));
         return m;
     }
 
@@ -308,8 +318,14 @@ class ImpactIT {
 
         assertThat(kinds(a.changed())).isEqualTo("MODIFIED shop.Pricing#tax(double)");
         Set<String> labelled = Set.of("shop.Pricing#total(double)", "shop.Order#price(double)", "shopweb.Checkout#pay(double)",
-                "shopweb.CheckoutTest#paysTheTotal()");
+                "shopweb.CheckoutTest#paysTheTotal()", "shop.PricingTest");
         report("body-change", names(a.affected()), labelled);
+
+        AffectedSymbol named = a.affected().stream().filter(x -> x.qualifiedName().equals("shop.PricingTest")).findFirst().orElseThrow();
+        assertThat(named.test()).isTrue();
+        assertThat(named.confidence()).isEqualTo(0.8);
+        assertThat(named.chain()).extracting(h -> h.from() + " " + h.edgeType() + " " + h.to()).containsExactly(
+                "shop.PricingTest TESTS shop.Pricing", "shop.Pricing CONTAINS shop.Pricing#tax(double)");
 
         AffectedSymbol test = a.affected().stream().filter(x -> x.qualifiedName().contains("CheckoutTest")).findFirst().orElseThrow();
         assertThat(test.test()).isTrue();
@@ -339,7 +355,8 @@ class ImpactIT {
 
         assertThat(kinds(a.changed())).contains("REMOVED shop.Pricing#total(double)")
                 .contains("ADDED shop.Pricing#total(double,int)").doesNotContain("shop.Pricing#tax");
-        Set<String> labelled = Set.of("shop.Order#price(double)", "shopweb.Checkout#pay(double)", "shopweb.CheckoutTest#paysTheTotal()");
+        Set<String> labelled = Set.of("shop.Order#price(double)", "shopweb.Checkout#pay(double)", "shopweb.CheckoutTest#paysTheTotal()",
+                "shop.PricingTest");
         report("signature-change", names(a.affected()), labelled);
 
         ChangedEntry removed = a.changed().stream().filter(c -> c.kind() == Kind.REMOVED).findFirst().orElseThrow();
@@ -395,7 +412,8 @@ class ImpactIT {
             ChangeSet cs = detector.detect(repo, commits.get(0), commits.get(1));
             ImpactAnalysis a = analyzer.analyze(snapshots.get(commits.get(0)), snapshots.get(commits.get(1)), cs, 1);
 
-            assertThat(names(a.affected())).containsExactly("shop.Pricing#total(double)");
+            // the test named after the changed class is listed whatever the depth
+            assertThat(names(a.affected())).containsExactly("shop.Pricing#total(double)", "shop.PricingTest");
             assertThat(a.depth()).isEqualTo(1);
         }
     }
@@ -463,8 +481,8 @@ class ImpactIT {
         assertThat(report.get("baseSnapshotId").asText()).isEqualTo(snapshots.get(commits.get(0)).toString());
         assertThat(report.get("headSnapshotId").asText()).isEqualTo(snapshots.get(commits.get(1)).toString());
         assertThat(report.get("changedCount").asInt()).isEqualTo(1);
-        assertThat(report.get("affectedCount").asInt()).isEqualTo(4);
-        assertThat(report.get("testsAffectedCount").asInt()).isEqualTo(1);
+        assertThat(report.get("affectedCount").asInt()).isEqualTo(5);
+        assertThat(report.get("testsAffectedCount").asInt()).isEqualTo(2);
         assertThat(report.get("possibleCount").asInt()).isZero();
         assertThat(report.get("truncated").asBoolean()).isFalse();
         assertThat(report.get("riskFactors")).hasSize(7);
@@ -476,20 +494,20 @@ class ImpactIT {
         assertThat(report.get("riskScore").asInt()).isEqualTo(Math.min(100, sum));
 
         JsonNode affected = get("/api/v1/impact-reports/" + reportId + "/findings?type=AFFECTED");
-        assertThat(affected.get("total").asInt()).isEqualTo(4);
+        assertThat(affected.get("total").asInt()).isEqualTo(5);
         JsonNode first = affected.get("items").get(0);
         assertThat(first.get("distance").asInt()).isEqualTo(1);
         assertThat(first.get("name").asText()).isEqualTo("shop.Pricing#total(double)");
         assertThat(first.get("changedSymbol").asText()).isEqualTo("shop.Pricing#tax(double)");
         assertThat(first.at("/chain/0/path").asText()).isNotBlank();
-        assertThat(affected.get("items").get(3).get("test").asBoolean()).isTrue();
+        assertThat(affected.get("items").get(4).get("test").asBoolean()).isTrue();
 
         assertThat(get("/api/v1/impact-reports/" + reportId + "/findings?type=CHANGED").get("items").get(0).get("changeKind").asText())
                 .isEqualTo("MODIFIED");
         assertThat(get("/api/v1/impact-reports/" + reportId + "/findings?type=AFFECTED&module=web").get("total").asInt()).isEqualTo(2);
         JsonNode page = get("/api/v1/impact-reports/" + reportId + "/findings?type=AFFECTED&limit=2&offset=2");
         assertThat(page.get("items")).hasSize(2);
-        assertThat(page.get("total").asInt()).isEqualTo(4);
+        assertThat(page.get("total").asInt()).isEqualTo(5);
         assertThat(rest.getForEntity("/api/v1/impact-reports/" + reportId + "/findings?type=NOPE", String.class).getStatusCode())
                 .isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(get(reports()).get(0).get("id").asText()).isEqualTo(reportId.toString());
@@ -517,7 +535,7 @@ class ImpactIT {
         awaitJob(shallow.at("/job/id").asText());
 
         assertThat(shallow.at("/report/id").asText()).isNotEqualTo(reportId.toString());
-        assertThat(get("/api/v1/impact-reports/" + shallow.at("/report/id").asText()).get("affectedCount").asInt()).isEqualTo(1);
+        assertThat(get("/api/v1/impact-reports/" + shallow.at("/report/id").asText()).get("affectedCount").asInt()).isEqualTo(2);
         assertThat(count("select count(*) from impact_report")).isEqualTo(2);
     }
 
@@ -581,8 +599,9 @@ class ImpactIT {
                 .contains("| Head graph snapshot | `" + snapshots.get(commits.get(1)) + "` |")
                 .contains("| Algorithm | `" + ImpactAnalyzer.ALGORITHM_VERSION + "` |")
                 .contains("| MODIFIED | `shop.Pricing#tax(double)` |")
-                .contains("### Tests to run (1)")
-                .contains("`shopweb.CheckoutTest#paysTheTotal()`");
+                .contains("### Tests to run (2)")
+                .contains("`shopweb.CheckoutTest#paysTheTotal()`")
+                .contains("`shop.PricingTest`");
         // the stored report renders identically every time
         assertThat(rest.getForEntity("/api/v1/impact-reports/" + reportId + "/report.md", String.class).getBody()).isEqualTo(md);
         assertThat(rest.getForEntity("/api/v1/impact-reports/" + UUID.randomUUID() + "/report.md", String.class).getStatusCode())

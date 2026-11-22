@@ -15,8 +15,8 @@ import GraphCanvas, { type Selection } from "./GraphCanvas";
 import styles from "./graph.module.css";
 import page from "../../page.module.css";
 
-const EDGE_TYPES: EdgeType[] = ["CALLS", "REFERENCES", "EXTENDS", "IMPLEMENTS", "IMPORTS", "CONTAINS"];
-const DEFAULT_TYPES: EdgeType[] = ["CALLS", "REFERENCES", "EXTENDS", "IMPLEMENTS"];
+const EDGE_TYPES: EdgeType[] = ["CALLS", "REFERENCES", "EXTENDS", "IMPLEMENTS", "TESTS", "IMPORTS", "CONTAINS"];
+const DEFAULT_TYPES: EdgeType[] = ["CALLS", "REFERENCES", "EXTENDS", "IMPLEMENTS", "TESTS"];
 const FIRST_LIMIT = 40; // small by default so hub nodes stay readable
 const MORE_STEP = 60;
 const MAX_LIMIT = 500;

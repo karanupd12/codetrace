@@ -87,6 +87,16 @@ public class GraphQueryService {
         return dao.touching(snapshot, targets, Direction.IN, DEPENDENCY_TYPES, TRAVERSABLE_STATES, true, limit);
     }
 
+    /** CONTAINS edges into the given nodes: the type or file that declares each of them. */
+    public List<EdgeView> containersOf(UUID snapshot, Collection<UUID> members, int limit) {
+        return dao.touching(snapshot, members, Direction.IN, Set.of("CONTAINS"), TRAVERSABLE_STATES, true, limit);
+    }
+
+    /** TESTS edges into the given types: the test classes named after them. */
+    public List<EdgeView> testLinksTo(UUID snapshot, Collection<UUID> types, int limit) {
+        return dao.touching(snapshot, types, Direction.IN, Set.of("TESTS"), TRAVERSABLE_STATES, true, limit);
+    }
+
     /** For each target, how many distinct nodes depend on it directly. */
     public Map<UUID, Integer> directDependentCounts(UUID snapshot, Collection<UUID> targets) {
         return dao.dependentCounts(snapshot, targets, DEPENDENCY_TYPES);

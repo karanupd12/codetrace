@@ -1,5 +1,6 @@
 package dev.codetrace.graph.engine;
 
+import dev.codetrace.common.util.SourcePaths;
 import dev.codetrace.graph.model.GraphModel.Edge;
 import dev.codetrace.graph.model.GraphModel.EdgeType;
 import dev.codetrace.graph.model.GraphModel.FileFact;
@@ -34,7 +35,7 @@ import java.util.UUID;
  */
 public final class GraphBuilder {
     /** Recorded on every snapshot and edge so results are traceable to the algorithm that produced them. */
-    public static final String VERSION = "graph-builder-2";
+    public static final String VERSION = "graph-builder-3"; // 3: TESTS edges by naming convention
     private static final Set<String> INCLUDED_STATUSES = Set.of("PARSED", "PARTIAL");
 
     public Result build(UUID snapshotId, Input in, Limits limits) {
@@ -113,6 +114,8 @@ public final class GraphBuilder {
             }
         }
 
+        testLinks(idx, types, sink);
+
         List<Node> nodes = idx.nodeById.values().stream()
                 .sorted(Comparator.comparing(Node::type).thenComparing(Node::path).thenComparing(Node::qualifiedName)
                         .thenComparing(Node::signature)).toList();
@@ -183,6 +186,49 @@ public final class GraphBuilder {
         }
         if (res.state() == Resolution.RESOLVED && res.single().id().equals(owner.id())) return; // no self-references
         emitResolved(sink, owner, edgeType, res, r.name(), res.evidenceKind(), r.path(), r.line());
+    }
+
+    // ---- test links -------------------------------------------------------------------------------------------------
+
+    /** Confidence factor for a link that rests only on a test class's name. */
+    static final double NAMING_CONFIDENCE = 0.8;
+
+    /**
+     * A test class named after a production class (FooTest, FooTests, FooIT, FooITCase, TestFoo) gets a TESTS edge to
+     * it. The name is resolved like any type reference written in the test file; targets in test sources are ignored.
+     */
+    private void testLinks(SymbolIndex idx, TypeResolver types, EdgeSink sink) {
+        List<Node> testTypes = idx.nodeById.values().stream()
+                .filter(n -> n.type() == NodeType.TYPE && SourcePaths.isTestPath(n.path()))
+                .sorted(Comparator.comparing(Node::path).thenComparing(Node::qualifiedName)).toList();
+        for (Node test : testTypes) {
+            String subject = testSubject(test.simpleName());
+            if (subject == null) continue;
+            TypeResolver.Resolved res = types.resolve(subject, idx.files.get(test.path()), idx.enclosingTypes(test));
+            if (res.state() == Resolution.UNRESOLVED) continue;
+            List<Node> targets = res.targets().stream().filter(t -> !SourcePaths.isTestPath(t.path())).toList();
+            if (targets.isEmpty()) continue;
+            Resolution state = targets.size() == 1 ? Resolution.RESOLVED : Resolution.AMBIGUOUS;
+            // the resolver splits its confidence across candidates; spread it over the production ones that remain
+            double confidence = res.confidence() * res.targets().size() * NAMING_CONFIDENCE / targets.size();
+            emit(sink, test, EdgeType.TESTS, state, targets, "NAMING_CONVENTION", confidence,
+                    state == Resolution.AMBIGUOUS ? res.reason() : "", subject, test.path(), test.startLine());
+        }
+    }
+
+    /** The production class name a test class name refers to, or null when it follows no convention. */
+    static String testSubject(String testName) {
+        for (String suffix : List.of("Tests", "Test", "ITCase", "IT")) {
+            if (testName.endsWith(suffix) && testName.length() > suffix.length()) {
+                return upperStart(testName.substring(0, testName.length() - suffix.length()));
+            }
+        }
+        if (testName.startsWith("Test") && testName.length() > 4) return upperStart(testName.substring(4));
+        return null;
+    }
+
+    private static String upperStart(String name) {
+        return Character.isUpperCase(name.charAt(0)) ? name : null;
     }
 
     // ---- emission -------------------------------------------------------------------------------------------------

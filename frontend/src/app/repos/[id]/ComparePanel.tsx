@@ -83,7 +83,7 @@ export default function ComparePanel({ snapshots, revisions }: { snapshots: Snap
   useEffect(() => {
     if (!result) return;
     const ctrl = new AbortController();
-    listEdgeChanges(result.base.id, result.head.id, { change: edgeFilter, types: "CALLS,REFERENCES,EXTENDS,IMPLEMENTS", limit: PAGE }, ctrl.signal)
+    listEdgeChanges(result.base.id, result.head.id, { change: edgeFilter, types: "CALLS,REFERENCES,EXTENDS,IMPLEMENTS,TESTS", limit: PAGE }, ctrl.signal)
       .then((p) => setEdges({ items: p.items, total: p.total }))
       .catch((e) => !ctrl.signal.aborted && setError(e instanceof Error ? e.message : "Could not load edge changes"));
     return () => ctrl.abort();
@@ -111,7 +111,7 @@ export default function ComparePanel({ snapshots, revisions }: { snapshots: Snap
   async function moreEdges() {
     if (!result) return;
     const p = await listEdgeChanges(result.base.id, result.head.id, {
-      change: edgeFilter, types: "CALLS,REFERENCES,EXTENDS,IMPLEMENTS", limit: PAGE, offset: edges.items.length,
+      change: edgeFilter, types: "CALLS,REFERENCES,EXTENDS,IMPLEMENTS,TESTS", limit: PAGE, offset: edges.items.length,
     });
     setEdges({ items: [...edges.items, ...p.items], total: p.total });
   }
