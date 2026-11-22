@@ -51,7 +51,7 @@ class ApiProfileContextIT {
     void systemInfoReportsApiRoleAndMigration() {
         var res = rest.getForEntity("/api/v1/system/info", String.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(res.getBody()).contains("\"role\":\"api\"").contains("\"dbMigrationVersion\":\"6\"")
+        assertThat(res.getBody()).contains("\"role\":\"api\"").contains("\"dbMigrationVersion\":\"7\"")
                 .contains("\"redis\":\"UP\"");
     }
 }

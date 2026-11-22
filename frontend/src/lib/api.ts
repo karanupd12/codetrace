@@ -48,6 +48,8 @@ export type Job = {
   filesSkipped: number | null;
   symbolsExtracted: number | null;
   parserVersion: string | null;
+  filesReused: number | null;
+  baseJobId: string | null;
 };
 
 export type Revision = { commitHash: string; summary: string; authorTime: string | null };

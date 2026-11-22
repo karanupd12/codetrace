@@ -24,6 +24,8 @@ public record IngestionProperties(
         @DefaultValue("3") int maxAttempts,
         @DefaultValue("600") int staleRunningSeconds,
         @DefaultValue("30") int retryDelaySeconds,
+        /** Copy the facts of files unchanged since the latest compatible index instead of parsing them again. */
+        @DefaultValue("true") boolean incremental,
         @DefaultValue({"target", "build", "out", "node_modules", ".git", ".gradle", ".idea", "dist"})
         List<String> ignoredDirs) {
 }

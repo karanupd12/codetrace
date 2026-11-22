@@ -21,7 +21,8 @@ public class JobRepository {
 
     private static final String COLS = """
             id, repository_id, operation, status, commit_hash, attempts, error_category, error_message, created_at,
-            started_at, finished_at, files_parsed, files_skipped, symbols_extracted, parser_version""";
+            started_at, finished_at, files_parsed, files_skipped, symbols_extracted, parser_version, files_reused,
+            base_job_id""";
 
     private final JdbcClient jdbc;
 
@@ -102,13 +103,29 @@ public class JobRepository {
 
     /** Completes an INDEX job with its result counts; runs in the caller's transaction with the stored results. */
     public void markIndexSucceeded(UUID id, int filesParsed, int filesSkipped, int symbols, String parserVersion,
-                                   int extractionVersion) {
+                                   int extractionVersion, int filesReused, UUID baseJobId) {
         jdbc.sql("""
                 update index_job set status = 'SUCCEEDED', files_parsed = :fp, files_skipped = :fs, symbols_extracted = :sy,
-                    parser_version = :pv, extraction_version = :ev, finished_at = now(), updated_at = now(),
-                    error_category = null, error_message = null where id = :id""")
+                    parser_version = :pv, extraction_version = :ev, files_reused = :fr, base_job_id = :b,
+                    finished_at = now(), updated_at = now(), error_category = null, error_message = null where id = :id""")
                 .param("fp", filesParsed).param("fs", filesSkipped).param("sy", symbols).param("pv", parserVersion)
-                .param("ev", extractionVersion).param("id", id).update();
+                .param("ev", extractionVersion).param("fr", filesReused).param("b", baseJobId, Types.OTHER)
+                .param("id", id).update();
+    }
+
+    /** The most recently finished index of another commit of this repository written by the given extractor. */
+    public Optional<IndexedRevision> findLatestSucceededIndex(UUID repositoryId, String otherThanCommit, String parserVersion,
+                                                             int extractionVersion) {
+        return jdbc.sql("""
+                select id, parser_version, extraction_version from index_job
+                where repository_id = :r and operation = 'INDEX' and status = 'SUCCEEDED' and commit_hash <> :c
+                  and parser_version = :pv and extraction_version = :ev
+                order by finished_at desc limit 1""")
+                .param("r", repositoryId).param("c", otherThanCommit).param("pv", parserVersion)
+                .param("ev", extractionVersion)
+                .query((rs, i) -> new IndexedRevision(rs.getObject("id", UUID.class), rs.getString("parser_version"),
+                        rs.getObject("extraction_version", Integer.class)))
+                .optional();
     }
 
     /** Back to QUEUED for a delayed retry; the sweeper republishes it after the retry delay. */
@@ -143,6 +160,7 @@ public class JobRepository {
                 rs.getObject("created_at", OffsetDateTime.class), rs.getObject("started_at", OffsetDateTime.class),
                 rs.getObject("finished_at", OffsetDateTime.class), rs.getObject("files_parsed", Integer.class),
                 rs.getObject("files_skipped", Integer.class), rs.getObject("symbols_extracted", Integer.class),
-                rs.getString("parser_version"));
+                rs.getString("parser_version"), rs.getObject("files_reused", Integer.class),
+                rs.getObject("base_job_id", UUID.class));
     }
 }

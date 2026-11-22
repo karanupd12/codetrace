@@ -55,7 +55,7 @@ class GraphBuildHandlerTest {
     private GraphIntegrityRepository validator;
     private GraphBuildHandler handler;
     private final Job job = new Job(UUID.randomUUID(), repoId, "GRAPH_BUILD", "RUNNING", COMMIT, 1, null, null,
-            OffsetDateTime.now(), OffsetDateTime.now(), null, null, null, null, null);
+            OffsetDateTime.now(), OffsetDateTime.now(), null, null, null, null, null, null, null);
 
     @BeforeEach
     void setUp() {

@@ -28,7 +28,8 @@ const short = (h: string | null) => (h ? h.slice(0, 7) : "—");
 
 function jobSummary(j: Job) {
   if (j.status === "SUCCEEDED" && j.operation === "INDEX") {
-    return `${j.filesParsed} files parsed · ${j.filesSkipped} skipped · ${j.symbolsExtracted} symbols`;
+    const reused = j.filesReused ? ` (${j.filesReused} unchanged, reused)` : "";
+    return `${j.filesParsed} files parsed${reused} · ${j.filesSkipped} skipped · ${j.symbolsExtracted} symbols`;
   }
   if (j.errorCategory) return `${j.errorCategory}: ${j.errorMessage ?? ""}`;
   return `attempt ${j.attempts}`;

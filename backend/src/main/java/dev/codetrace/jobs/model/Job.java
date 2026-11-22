@@ -7,5 +7,5 @@ import java.util.UUID;
 public record Job(UUID id, UUID repositoryId, String operation, String status, String commitHash, int attempts,
                   String errorCategory, String errorMessage, OffsetDateTime createdAt, OffsetDateTime startedAt,
                   OffsetDateTime finishedAt, Integer filesParsed, Integer filesSkipped, Integer symbolsExtracted,
-                  String parserVersion) {
+                  String parserVersion, Integer filesReused, UUID baseJobId) {
 }

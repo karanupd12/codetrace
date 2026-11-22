@@ -10,7 +10,10 @@ import dev.codetrace.ingestion.model.IndexResult;
 import dev.codetrace.ingestion.model.IndexResult.DiagnosticRecord;
 import dev.codetrace.ingestion.model.IndexResult.FileRecord;
 import dev.codetrace.ingestion.model.IndexResult.ImportRecord;
+import dev.codetrace.ingestion.model.IndexResult.ReusedFile;
 import dev.codetrace.ingestion.model.IndexResult.SymbolRecord;
+import dev.codetrace.ingestion.model.ReusableIndex;
+import dev.codetrace.ingestion.model.ReusableIndex.ReusableFile;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -18,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
@@ -30,7 +34,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * Reads Java sources for one pinned commit directly from Git objects (no checkout) and extracts symbols.
- * Enforces file-count, per-file, total-byte, symbol-count and wall-clock limits.
+ * Enforces file-count, per-file, total-byte, symbol-count and wall-clock limits. Files whose blob is in the given
+ * reusable index are not read or parsed; their facts are copied later and count towards the same limits.
  */
 @Component
 public class JavaIndexer {
@@ -41,6 +46,10 @@ public class JavaIndexer {
     }
 
     public IndexResult index(Repository repo, String commitHash) {
+        return index(repo, commitHash, ReusableIndex.NONE);
+    }
+
+    public IndexResult index(Repository repo, String commitHash, ReusableIndex reusable) {
         long deadline = System.nanoTime() + Duration.ofSeconds(props.parseDeadlineSeconds()).toNanos();
         JavaSymbolExtractor extractor = new JavaSymbolExtractor();
         Set<String> ignored = new HashSet<>(props.ignoredDirs());
@@ -50,6 +59,9 @@ public class JavaIndexer {
         List<ImportRecord> imports = new ArrayList<>();
         List<IndexResult.ReferenceRecord> references = new ArrayList<>();
         List<DiagnosticRecord> diagnostics = new ArrayList<>();
+        List<ReusedFile> reused = new ArrayList<>();
+        int reusedSymbols = 0;
+        int reusedReferences = 0;
         int parsed = 0;
         int skipped = 0;
         int javaFiles = 0;
@@ -72,7 +84,7 @@ public class JavaIndexer {
                     }
                     if (!isSafePath(path)) {
                         skipped++;
-                        files.add(new FileRecord(sanitizeForStorage(path), "", "SKIPPED", "UNSAFE_PATH", 0));
+                        files.add(new FileRecord(sanitizeForStorage(path), "", "SKIPPED", "UNSAFE_PATH", 0, ""));
                         continue;
                     }
                     if (isIgnored(path, ignored)) {
@@ -82,7 +94,7 @@ public class JavaIndexer {
                     int mode = tw.getRawMode(0);
                     if (FileMode.SYMLINK.equals(mode)) {
                         skipped++;
-                        files.add(new FileRecord(path, "", "SKIPPED", "SYMLINK", 0));
+                        files.add(new FileRecord(path, "", "SKIPPED", "SYMLINK", 0, ""));
                         continue;
                     }
                     if (!FileMode.REGULAR_FILE.equals(mode) && !FileMode.EXECUTABLE_FILE.equals(mode)) {
@@ -92,11 +104,12 @@ public class JavaIndexer {
                         throw new JobFailureException(Category.LIMIT_EXCEEDED,
                                 "More than " + props.maxJavaFiles() + " Java files in revision.");
                     }
-                    ObjectLoader loader = reader.open(tw.getObjectId(0));
-                    long size = loader.getSize();
+                    ObjectId blob = tw.getObjectId(0);
+                    String blobId = blob.name();
+                    long size = reader.getObjectSize(blob, Constants.OBJ_BLOB);
                     if (size > props.maxFileBytes()) {
                         skipped++;
-                        files.add(new FileRecord(path, "", "SKIPPED", "TOO_LARGE", size));
+                        files.add(new FileRecord(path, "", "SKIPPED", "TOO_LARGE", size, blobId));
                         diagnostics.add(new DiagnosticRecord(path, new Diagnostic("WARNING", "FILE_TOO_LARGE",
                                 "File is " + size + " bytes; limit is " + props.maxFileBytes() + ".", 0)));
                         continue;
@@ -106,29 +119,43 @@ public class JavaIndexer {
                         throw new JobFailureException(Category.LIMIT_EXCEEDED,
                                 "Java sources exceed the total size limit of " + props.maxTotalBytes() + " bytes.");
                     }
+                    ReusableFile same = reusable.byBlob().get(blobId);
+                    if (same != null) {
+                        files.add(new FileRecord(path, same.packageName(), same.status(), "", size, blobId));
+                        reused.add(new ReusedFile(path, same.path()));
+                        reusedSymbols += same.symbols();
+                        reusedReferences += same.references();
+                        if (!JavaSymbolExtractor.FileStatus.FAILED.name().equals(same.status())) parsed++;
+                        checkFactLimits(symbols.size() + reusedSymbols, references.size() + reusedReferences);
+                        continue;
+                    }
+                    ObjectLoader loader = reader.open(blob, Constants.OBJ_BLOB);
                     String source = new String(loader.getBytes((int) props.maxFileBytes()), StandardCharsets.UTF_8);
                     FileExtraction x = extractor.extract(source);
-                    files.add(new FileRecord(path, x.packageName(), x.status().name(), "", size));
+                    files.add(new FileRecord(path, x.packageName(), x.status().name(), "", size, blobId));
                     for (var s : x.symbols()) symbols.add(new SymbolRecord(path, s));
                     for (var i : x.imports()) imports.add(new ImportRecord(path, i));
                     for (var r : x.references()) references.add(new IndexResult.ReferenceRecord(path, r));
                     for (var d : x.diagnostics()) diagnostics.add(new DiagnosticRecord(path, d));
                     if (x.status() != JavaSymbolExtractor.FileStatus.FAILED) parsed++;
-                    if (symbols.size() > props.maxSymbols()) {
-                        throw new JobFailureException(Category.LIMIT_EXCEEDED,
-                                "More than " + props.maxSymbols() + " symbols in revision.");
-                    }
-                    if (references.size() > props.maxReferences()) {
-                        throw new JobFailureException(Category.LIMIT_EXCEEDED,
-                                "More than " + props.maxReferences() + " references in revision.");
-                    }
+                    checkFactLimits(symbols.size() + reusedSymbols, references.size() + reusedReferences);
                 }
             }
         } catch (IOException e) {
             throw new JobFailureException(Category.GIT_ERROR, "Could not read revision contents.", e);
         }
         return new IndexResult(JavaSymbolExtractor.PARSER_VERSION, parsed, skipped, files, symbols, imports, references,
-                diagnostics);
+                diagnostics, reused.isEmpty() ? null : reusable.jobId(), reused);
+    }
+
+    private void checkFactLimits(int symbols, int references) {
+        if (symbols > props.maxSymbols()) {
+            throw new JobFailureException(Category.LIMIT_EXCEEDED, "More than " + props.maxSymbols() + " symbols in revision.");
+        }
+        if (references > props.maxReferences()) {
+            throw new JobFailureException(Category.LIMIT_EXCEEDED,
+                    "More than " + props.maxReferences() + " references in revision.");
+        }
     }
 
     /** Git trees can contain odd names; reject anything that is not a clean relative path. */

@@ -50,7 +50,7 @@ class JobProcessorTest {
 
     private Job job(String op, int attempts) {
         return new Job(jobId, repoId, op, "RUNNING", op.equals("INDEX") ? "a".repeat(40) : null, attempts, null, null,
-                OffsetDateTime.now(), OffsetDateTime.now(), null, null, null, null, null);
+                OffsetDateTime.now(), OffsetDateTime.now(), null, null, null, null, null, null, null);
     }
 
     private void claimed(Job job) {

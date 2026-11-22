@@ -43,7 +43,7 @@ class MigrationIT {
     void migrationsApplyAndRerunningIsANoOp() throws SQLException {
         Flyway flyway = migrate();
         flyway.migrate(); // second run must change nothing
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("6");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("7");
         assertThat(flyway.info().pending()).isEmpty();
         try (Connection c = connect();
              PreparedStatement ps = c.prepareStatement("""

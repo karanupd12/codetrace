@@ -72,7 +72,7 @@ class GraphSnapshotServiceTest {
 
     private Job buildJob(String status) {
         return new Job(buildJobId, repoId, "GRAPH_BUILD", status, COMMIT, 0, null, null, OffsetDateTime.now(), null, null,
-                null, null, null, null);
+                null, null, null, null, null, null);
     }
 
     private void givenSnapshot(String snapStatus, String jobStatus, boolean jobCreated) {

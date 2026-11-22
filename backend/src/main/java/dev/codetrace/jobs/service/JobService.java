@@ -74,8 +74,15 @@ public class JobService {
 
     /** Marks an INDEX job finished with its counts; joins the caller's transaction so it commits with the results. */
     public void completeIndex(UUID jobId, int filesParsed, int filesSkipped, int symbols, String parserVersion,
-                              int extractionVersion) {
-        jobs.markIndexSucceeded(jobId, filesParsed, filesSkipped, symbols, parserVersion, extractionVersion);
+                              int extractionVersion, int filesReused, UUID baseJobId) {
+        jobs.markIndexSucceeded(jobId, filesParsed, filesSkipped, symbols, parserVersion, extractionVersion, filesReused,
+                baseJobId);
+    }
+
+    /** The latest finished index of another commit of the repository, written by the given extractor. */
+    public Optional<IndexedRevision> findLatestSucceededIndex(UUID repositoryId, String otherThanCommit,
+                                                             String parserVersion, int extractionVersion) {
+        return jobs.findLatestSucceededIndex(repositoryId, otherThanCommit, parserVersion, extractionVersion);
     }
 
     public Optional<IndexedRevision> findSucceededIndex(UUID repositoryId, String commitHash) {

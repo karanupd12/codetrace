@@ -8,10 +8,14 @@ import dev.codetrace.jobs.JobFailureException.Category;
 import dev.codetrace.support.GitFixtures;
 import dev.codetrace.support.GitFixtures.Entry;
 import dev.codetrace.ingestion.model.IndexResult;
+import dev.codetrace.ingestion.model.ReusableIndex;
+import dev.codetrace.ingestion.model.ReusableIndex.ReusableFile;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.junit.jupiter.api.Test;
@@ -167,6 +171,59 @@ class JavaIndexerTest {
             IndexResult atFirst = indexer.index(repo, first);
 
             assertThat(atFirst.symbols()).extracting(s -> s.symbol().qualifiedName()).containsExactly("A");
+        }
+    }
+
+    @Test
+    void unchangedAndRenamedFilesAreReusedWhileChangedAndNewFilesAreParsed() throws Exception {
+        String first = GitFixtures.createRepo(tmp, Map.of(
+                "p/Same.java", Entry.file("package p; class Same { void a() {} }"),
+                "p/Moved.java", Entry.file("package p; class Moved { void b() {} }"),
+                "p/Edited.java", Entry.file("package p; class Edited { void c() {} }"),
+                "p/Gone.java", Entry.file("package p; class Gone {}")));
+        try (Repository repo = open(tmp)) {
+            String second = GitFixtures.commit(repo, Map.of(
+                    "p/Same.java", Entry.file("package p; class Same { void a() {} }"),
+                    "q/Moved.java", Entry.file("package p; class Moved { void b() {} }"),
+                    "p/Edited.java", Entry.file("package p; class Edited { void c() {} void d() {} }"),
+                    "p/Added.java", Entry.file("package p; class Added {}")), first, "second");
+            JavaIndexer indexer = new JavaIndexer(GitFixtures.props(tmp.resolve("ws"), List.of()));
+            IndexResult base = indexer.index(repo, first);
+            UUID baseJob = UUID.randomUUID();
+            Map<String, ReusableFile> byBlob = new HashMap<>();
+            for (IndexResult.FileRecord f : base.files()) {
+                int symbols = (int) base.symbols().stream().filter(s -> s.path().equals(f.path())).count();
+                byBlob.put(f.blobId(), new ReusableFile(f.path(), f.packageName(), f.status(), symbols, 0));
+            }
+
+            IndexResult incremental = indexer.index(repo, second, new ReusableIndex(baseJob, byBlob));
+            IndexResult full = indexer.index(repo, second);
+
+            assertThat(incremental.baseJobId()).isEqualTo(baseJob);
+            assertThat(incremental.reused()).containsExactlyInAnyOrder(
+                    new IndexResult.ReusedFile("p/Same.java", "p/Same.java"),
+                    new IndexResult.ReusedFile("q/Moved.java", "p/Moved.java"));
+            assertThat(incremental.symbols()).extracting(IndexResult.SymbolRecord::path).containsOnly(
+                    "p/Edited.java", "p/Added.java");
+            assertThat(incremental.files()).containsExactlyInAnyOrderElementsOf(full.files());
+            assertThat(incremental.filesParsed()).isEqualTo(full.filesParsed());
+            assertThat(full.reused()).isEmpty();
+            assertThat(full.baseJobId()).isNull();
+        }
+    }
+
+    @Test
+    void reusedFilesCountTowardsTheSymbolLimit() throws Exception {
+        String commit = GitFixtures.createRepo(tmp, Map.of("A.java", Entry.file("class A { void a() {} }")));
+        try (Repository repo = open(tmp)) {
+            JavaIndexer indexer = new JavaIndexer(GitFixtures.limited(5000, 524_288L, 50_000_000L, 10));
+            String blob = indexer.index(repo, commit).files().get(0).blobId();
+            ReusableIndex hugeBase = new ReusableIndex(UUID.randomUUID(),
+                    Map.of(blob, new ReusableFile("A.java", "", "PARSED", 11, 0)));
+
+            assertThatThrownBy(() -> indexer.index(repo, commit, hugeBase))
+                    .isInstanceOfSatisfying(JobFailureException.class,
+                            e -> assertThat(e.category()).isEqualTo(Category.LIMIT_EXCEEDED));
         }
     }
 
