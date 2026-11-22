@@ -66,6 +66,15 @@ public class GraphWriteRepository {
                 snapshot.id());
     }
 
+    /**
+     * Refreshes the planner statistics of the graph tables after a snapshot has been written. Until they are refreshed,
+     * PostgreSQL estimates a single row for a snapshot it has never sampled and can choose plans that scan the whole
+     * snapshot once per row.
+     */
+    public void refreshStatistics() {
+        jdbc.execute("analyze code_node, dependency_edge");
+    }
+
     private static void bindEdge(PreparedStatement ps, Snapshot s, Edge e) throws SQLException {
         ps.setObject(1, s.id());
         ps.setObject(2, s.repositoryId());

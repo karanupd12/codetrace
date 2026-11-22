@@ -28,14 +28,28 @@ public class GraphIntegrityRepository {
         check(violations, "stored edge count differs from the built graph",
                 "select case when count(*) = :e then 0 else 1 end from dependency_edge where snapshot_id = :s", snapshotId,
                 expectedNodes, expectedEdges);
+        // Container counts come from one grouped pass over nodes and CONTAINS edges instead of a per-node subquery,
+        // so the cost stays linear even when the planner has no statistics for a freshly written snapshot.
         check(violations, "declarations without exactly one container", """
-                select count(*) from code_node n where n.snapshot_id = :s and n.node_type in ('TYPE', 'METHOD', 'FIELD')
-                  and (select count(*) from dependency_edge e where e.snapshot_id = :s and e.dst_node_id = n.id
-                       and e.edge_type = 'CONTAINS') <> 1""", snapshotId, expectedNodes, expectedEdges);
+                select count(*) from (
+                    select id from (
+                        select n.id, 1 as declaration, 0 as containers from code_node n
+                         where n.snapshot_id = :s and n.node_type in ('TYPE', 'METHOD', 'FIELD')
+                        union all
+                        select e.dst_node_id, 0, 1 from dependency_edge e
+                         where e.snapshot_id = :s and e.edge_type = 'CONTAINS'
+                    ) x group by id having max(declaration) = 1 and sum(containers) <> 1) v""",
+                snapshotId, expectedNodes, expectedEdges);
         check(violations, "files with more than one container", """
-                select count(*) from code_node n where n.snapshot_id = :s and n.node_type = 'FILE'
-                  and (select count(*) from dependency_edge e where e.snapshot_id = :s and e.dst_node_id = n.id
-                       and e.edge_type = 'CONTAINS') > 1""", snapshotId, expectedNodes, expectedEdges);
+                select count(*) from (
+                    select id from (
+                        select n.id, 1 as file, 0 as containers from code_node n
+                         where n.snapshot_id = :s and n.node_type = 'FILE'
+                        union all
+                        select e.dst_node_id, 0, 1 from dependency_edge e
+                         where e.snapshot_id = :s and e.edge_type = 'CONTAINS'
+                    ) x group by id having max(file) = 1 and sum(containers) > 1) v""",
+                snapshotId, expectedNodes, expectedEdges);
         check(violations, "CONTAINS edges that are not RESOLVED", """
                 select count(*) from dependency_edge where snapshot_id = :s and edge_type = 'CONTAINS'
                   and resolution_state <> 'RESOLVED'""", snapshotId, expectedNodes, expectedEdges);
@@ -43,10 +57,13 @@ public class GraphIntegrityRepository {
                 select count(*) from (select alternative_group from dependency_edge
                     where snapshot_id = :s and resolution_state = 'AMBIGUOUS'
                     group by alternative_group having count(*) < 2) g""", snapshotId, expectedNodes, expectedEdges);
+        // Endpoints are joined by node id alone: ids are unique across snapshots and the composite foreign keys already
+        // keep both endpoints in the edge's snapshot. Leaving snapshot_id off the node side lets the planner use the
+        // primary key per edge or a hash join, never a scan of the whole snapshot for every edge.
         check(violations, "edges whose endpoint node types do not fit the edge type", """
                 select count(*) from dependency_edge e
-                  join code_node s on s.snapshot_id = e.snapshot_id and s.id = e.src_node_id
-                  left join code_node d on d.snapshot_id = e.snapshot_id and d.id = e.dst_node_id
+                  join code_node s on s.id = e.src_node_id
+                  left join code_node d on d.id = e.dst_node_id
                 where e.snapshot_id = :s and not (
                      (e.edge_type = 'CONTAINS'   and ((s.node_type = 'PACKAGE' and d.node_type = 'FILE')
                                                    or (s.node_type = 'FILE'    and d.node_type = 'TYPE')

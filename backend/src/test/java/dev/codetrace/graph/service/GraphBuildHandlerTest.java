@@ -91,6 +91,7 @@ class GraphBuildHandlerTest {
         order.verify(snapshots).begin(snapshotId);
         order.verify(loader).load(indexJobId);
         order.verify(writer).write(any(), any());
+        order.verify(writer).refreshStatistics();
         order.verify(validator).validate(eq(snapshotId), anyInt(), anyInt());
         order.verify(snapshots).publish(snapshotId);
         verify(snapshots, never()).markFailed(any(), any());

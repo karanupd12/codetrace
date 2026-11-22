@@ -78,6 +78,7 @@ public class GraphBuildHandler implements JobHandler {
             Input input = loader.load(indexed.jobId());
             Result graph = builder.build(snapshot.id(), input, new Limits(props.maxNodes(), props.maxEdges()));
             writer.write(snapshot, graph);
+            writer.refreshStatistics();
 
             List<String> violations = validator.validate(snapshot.id(), graph.nodes().size(), graph.edges().size());
             if (!violations.isEmpty()) {
