@@ -36,7 +36,7 @@ public class ImpactReportRepository {
                 insert into impact_report (id, repository_id, base_commit, head_commit, base_snapshot_id, head_snapshot_id,
                                            algorithm_version, depth, job_id, status)
                 values (:id, :r, :bc, :hc, :bs, :hs, :alg, :d, :j, 'REQUESTED')
-                on conflict (repository_id, base_snapshot_id, head_snapshot_id, algorithm_version, depth) do nothing""")
+                on conflict do nothing""") // identity and job id both name the same report; a concurrent twin wins
                 .param("id", UUID.randomUUID()).param("r", repositoryId).param("bc", baseCommit).param("hc", headCommit)
                 .param("bs", baseSnapshot).param("hs", headSnapshot).param("alg", algorithmVersion).param("d", depth)
                 .param("j", jobId).update();

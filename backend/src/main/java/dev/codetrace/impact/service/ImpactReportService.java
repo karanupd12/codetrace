@@ -98,12 +98,13 @@ public class ImpactReportService {
         return reports.listForRepository(repositoryId, 50);
     }
 
-    public Page<Finding> findings(UUID reportId, String type, String module, int limit, int offset) {
+    /** A page of findings, optionally of one type, one module, and only tests ({@code test=true}) or only production code. */
+    public Page<Finding> findings(UUID reportId, String type, String module, Boolean test, int limit, int offset) {
         ImpactReport r = completed(reportId);
         if (type != null && !FINDING_TYPES.contains(type)) {
             throw ApiException.badRequest("type must be one of CHANGED, AFFECTED, POSSIBLE, ENDPOINT.");
         }
-        return findings.page(r.id(), type, module, Bounds.limit(limit, 500), Bounds.offset(offset));
+        return findings.page(r.id(), type, module, test, Bounds.limit(limit, 500), Bounds.offset(offset));
     }
 
     /** Every finding of a completed report in report order; bounded by the analysis limits. */

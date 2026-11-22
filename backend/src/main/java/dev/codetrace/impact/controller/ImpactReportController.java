@@ -53,8 +53,9 @@ public class ImpactReportController {
     @GetMapping("/impact-reports/{reportId}/findings")
     public Page<Finding> findings(@PathVariable UUID reportId, @RequestParam(required = false) String type,
                                   @RequestParam(required = false) String module,
+                                  @RequestParam(required = false) Boolean test,
                                   @RequestParam(defaultValue = "100") int limit, @RequestParam(defaultValue = "0") int offset) {
-        return service.findings(reportId, type, module, limit, offset);
+        return service.findings(reportId, type, module, test, limit, offset);
     }
 
     private ImpactReportResponse response(ImpactReport r) {

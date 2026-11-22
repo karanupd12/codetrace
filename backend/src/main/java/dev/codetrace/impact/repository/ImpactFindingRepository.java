@@ -19,7 +19,8 @@ public class ImpactFindingRepository {
             finding_type, ordinal, name, node_type, path, line, module, is_test, change_kind, direct_dependents, distance,
             certain, confidence, changed_symbol, chain::text as chain""";
     private static final String WHERE = " where report_id = :r and (cast(:type as text) is null or finding_type = :type)"
-            + " and (cast(:module as text) is null or module = :module)";
+            + " and (cast(:module as text) is null or module = :module)"
+            + " and (cast(:test as boolean) is null or is_test = :test)";
 
     private final JdbcClient jdbc;
     private static final TypeReference<List<Hop>> HOPS = new TypeReference<>() {
@@ -32,12 +33,14 @@ public class ImpactFindingRepository {
         this.json = json;
     }
 
-    public Page<Finding> page(UUID reportId, String type, String module, int limit, int offset) {
+    public Page<Finding> page(UUID reportId, String type, String module, Boolean test, int limit, int offset) {
         long total = jdbc.sql("select count(*) from impact_finding" + WHERE)
-                .param("r", reportId).param("type", type).param("module", module).query(Long.class).single();
+                .param("r", reportId).param("type", type).param("module", module).param("test", test)
+                .query(Long.class).single();
         List<Finding> items = jdbc.sql("select " + COLS + " from impact_finding" + WHERE
                 + " order by finding_type, ordinal limit :lim offset :off")
-                .param("r", reportId).param("type", type).param("module", module).param("lim", limit).param("off", offset)
+                .param("r", reportId).param("type", type).param("module", module).param("test", test)
+                .param("lim", limit).param("off", offset)
                 .query(this::map).list();
         return new Page<>(items, limit, offset, total);
     }

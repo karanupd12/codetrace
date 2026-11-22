@@ -610,6 +610,8 @@ class ImpactIT {
         assertThat(get("/api/v1/impact-reports/" + reportId + "/findings?type=CHANGED").get("items").get(0).get("changeKind").asText())
                 .isEqualTo("MODIFIED");
         assertThat(get("/api/v1/impact-reports/" + reportId + "/findings?type=AFFECTED&module=web").get("total").asInt()).isEqualTo(3);
+        assertThat(get("/api/v1/impact-reports/" + reportId + "/findings?type=AFFECTED&test=true").get("total").asInt()).isEqualTo(2);
+        assertThat(get("/api/v1/impact-reports/" + reportId + "/findings?type=AFFECTED&test=false").get("total").asInt()).isEqualTo(4);
         JsonNode page = get("/api/v1/impact-reports/" + reportId + "/findings?type=AFFECTED&limit=2&offset=2");
         assertThat(page.get("items")).hasSize(2);
         assertThat(page.get("total").asInt()).isEqualTo(6);
