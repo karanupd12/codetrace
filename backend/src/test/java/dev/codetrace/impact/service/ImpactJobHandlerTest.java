@@ -61,7 +61,7 @@ class ImpactJobHandlerTest {
         when(reports.findByJob(jobId)).thenReturn(Optional.of(report("REQUESTED", reportId, repoId, jobId)));
         when(reports.markRunning(reportId)).thenReturn(true);
         when(repositories.find(repoId)).thenReturn(Optional.of(mock(SourceRepository.class)));
-        when(git.open(any())).thenReturn(gitRepo);
+        when(git.open(any(), any())).thenReturn(gitRepo);
     }
 
     @Test

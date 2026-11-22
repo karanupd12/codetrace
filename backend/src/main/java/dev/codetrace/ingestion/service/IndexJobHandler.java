@@ -12,6 +12,7 @@ import dev.codetrace.source.service.SourceRepositoryService;
 import dev.codetrace.source.model.SourceRepository;
 import dev.codetrace.ingestion.model.IndexResult;
 import dev.codetrace.ingestion.model.ReusableIndex;
+import java.util.List;
 import org.eclipse.jgit.lib.Repository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,7 +52,7 @@ public class IndexJobHandler implements JobHandler {
     public void handle(Job job) {
         SourceRepository repo = repositories.find(job.repositoryId()).orElseThrow(
                 () -> new JobFailureException(Category.INVALID_SOURCE, "Repository no longer exists."));
-        try (Repository r = git.open(repo)) {
+        try (Repository r = git.open(repo, List.of(job.commitHash()))) {
             ReusableIndex reusable = props.incremental() ? results.reusableFor(repo.id(), job.commitHash())
                     : ReusableIndex.NONE;
             IndexResult result = indexer.index(r, job.commitHash(), reusable);

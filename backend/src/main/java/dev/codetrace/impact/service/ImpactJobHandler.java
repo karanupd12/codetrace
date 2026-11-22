@@ -16,6 +16,7 @@ import dev.codetrace.jobs.JobHandler;
 import dev.codetrace.jobs.model.JobOperation;
 import dev.codetrace.source.service.SourceRepositoryService;
 import dev.codetrace.source.model.SourceRepository;
+import java.util.List;
 import org.eclipse.jgit.lib.Repository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,7 +69,7 @@ public class ImpactJobHandler implements JobHandler {
         if (!reports.markRunning(report.id())) return; // completed concurrently by another worker
         SourceRepository repo = repositories.find(report.repositoryId()).orElseThrow(
                 () -> new JobFailureException(Category.INVALID_SOURCE, "Repository no longer exists."));
-        try (Repository repository = git.open(repo)) {
+        try (Repository repository = git.open(repo, List.of(report.baseCommit(), report.headCommit()))) {
             ChangeSet changes = detector.detect(repository, report.baseCommit(), report.headCommit());
             ImpactAnalysis analysis = analyzer.analyze(report.baseSnapshotId(), report.headSnapshotId(), changes, report.depth());
             RiskAssessment risk = assessor.assess(analysis);
