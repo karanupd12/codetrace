@@ -2,7 +2,6 @@ package dev.codetrace.source.service;
 
 import dev.codetrace.common.util.Commits;
 import dev.codetrace.common.web.ApiException;
-import dev.codetrace.ingestion.parser.JavaSymbolExtractor;
 import dev.codetrace.jobs.model.Job;
 import dev.codetrace.jobs.model.JobKeys;
 import dev.codetrace.jobs.model.JobOperation;
@@ -146,7 +145,7 @@ public class SourceRepositoryService {
 
     private boolean indexedByOlderExtractor(UUID repositoryId, String commit) {
         return jobs.findSucceededIndex(repositoryId, commit)
-                .map(i -> i.extractionVersion() == null || i.extractionVersion() < JavaSymbolExtractor.EXTRACTION_VERSION)
+                .map(i -> !i.isCurrent())
                 .orElse(false);
     }
 }

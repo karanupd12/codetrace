@@ -4,7 +4,6 @@ import dev.codetrace.common.web.ApiException;
 import dev.codetrace.graph.engine.GraphBuilder;
 import dev.codetrace.graph.repository.GraphSnapshotRepository;
 import dev.codetrace.graph.model.Snapshot;
-import dev.codetrace.ingestion.parser.JavaSymbolExtractor;
 import dev.codetrace.jobs.model.IndexedRevision;
 import dev.codetrace.jobs.model.Job;
 import dev.codetrace.jobs.model.JobKeys;
@@ -42,7 +41,7 @@ public class GraphSnapshotService {
         String commit = repositories.resolveRevision(repo, commitHash);
         IndexedRevision indexed = jobs.findSucceededIndex(repo.id(), commit).orElseThrow(
                 () -> ApiException.conflict("Index this revision first: no finished index job exists for it."));
-        if (indexed.extractionVersion() == null || indexed.extractionVersion() < JavaSymbolExtractor.EXTRACTION_VERSION) {
+        if (!indexed.isCurrent()) {
             throw ApiException.conflict("This revision was indexed by an older extractor. Re-index it, then build the graph.");
         }
 

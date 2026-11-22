@@ -14,6 +14,7 @@ import com.github.javaparser.ast.body.AnnotationMemberDeclaration;
 import com.github.javaparser.ast.body.BodyDeclaration;
 import com.github.javaparser.ast.body.CallableDeclaration;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
+import dev.codetrace.jobs.model.IndexedRevision;
 import com.github.javaparser.ast.body.CompactConstructorDeclaration;
 import com.github.javaparser.ast.body.ConstructorDeclaration;
 import com.github.javaparser.ast.body.EnumConstantDeclaration;
@@ -73,8 +74,8 @@ import java.util.stream.Collectors;
 public final class JavaSymbolExtractor {
     public static final String PARSER_VERSION = "javaparser-core-3.26.4";
     public static final String EXTRACTION_METHOD = "java-declarations-v4";
-    /** Bumped when the set of extracted facts changes; the graph builder requires the current version (HTTP endpoints). */
-    public static final int EXTRACTION_VERSION = 4;
+    /** The version of the facts this extractor produces (4: HTTP endpoints); see {@link IndexedRevision}. */
+    public static final int EXTRACTION_VERSION = IndexedRevision.CURRENT_EXTRACTION_VERSION;
     private static final int MAX_MESSAGE = 300;
 
     public enum FileStatus { PARSED, PARTIAL, FAILED }

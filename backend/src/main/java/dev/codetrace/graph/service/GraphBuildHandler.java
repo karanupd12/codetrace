@@ -17,7 +17,6 @@ import dev.codetrace.jobs.model.IndexedRevision;
 import dev.codetrace.jobs.model.Job;
 import dev.codetrace.jobs.JobHandler;
 import dev.codetrace.jobs.model.JobOperation;
-import dev.codetrace.ingestion.parser.JavaSymbolExtractor;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,7 +62,7 @@ public class GraphBuildHandler implements JobHandler {
     public void handle(Job job) {
         IndexedRevision indexed = jobs.findSucceededIndex(job.repositoryId(), job.commitHash()).orElseThrow(
                 () -> new JobFailureException(Category.INVALID_SOURCE, "This revision has not been indexed."));
-        if (indexed.extractionVersion() == null || indexed.extractionVersion() < JavaSymbolExtractor.EXTRACTION_VERSION) {
+        if (!indexed.isCurrent()) {
             throw new JobFailureException(Category.INVALID_SOURCE, "This revision was indexed by an older extractor; re-index it.");
         }
         Snapshot snapshot = snapshots.createOrGet(job.repositoryId(), job.commitHash(), indexed.parserVersion(),
