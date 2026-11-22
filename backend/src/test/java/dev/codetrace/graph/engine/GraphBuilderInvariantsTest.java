@@ -99,10 +99,11 @@ class GraphBuilderInvariantsTest {
         // addLine(sku, 1) -> exactly one 2-argument overload
         assertThat(dsts(r, "com.acme.shop.Order#addLine(String)", EdgeType.CALLS))
                 .contains("com.acme.shop.Order#addLine(String,int)");
-        // addLine(sku) has two 1-argument overloads (String / Line): argument types are not checked, so AMBIGUOUS
-        List<Edge> amb = from(r, "com.acme.shop.Order#addAll(String...)", EdgeType.CALLS).stream()
-                .filter(e -> e.resolution() == Resolution.AMBIGUOUS).toList();
-        assertThat(amb).hasSize(2);
+        // addLine(sku) has two 1-argument overloads (String / Line); the argument is a String, so one remains
+        List<Edge> viaArgs = from(r, "com.acme.shop.Order#addAll(String...)", EdgeType.CALLS).stream()
+                .filter(e -> e.evidenceKind().endsWith("ARGUMENT_TYPES")).toList();
+        assertThat(viaArgs).hasSize(1);
+        assertThat(viaArgs.get(0).resolution()).isEqualTo(Resolution.RESOLVED);
         // a parameter-typed receiver resolves across files
         assertThat(dsts(r, "com.acme.shop.OrderService#checkout(Order)", EdgeType.CALLS))
                 .contains("com.acme.shop.Order#priceCents()");

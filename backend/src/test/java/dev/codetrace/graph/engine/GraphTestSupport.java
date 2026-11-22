@@ -39,7 +39,7 @@ public final class GraphTestSupport {
                     s.qualifiedName(), s.signature(), s.parentQualifiedName(), s.modifiers(), s.startLine(), s.endLine())));
             x.imports().forEach(i -> imports.add(new ImportFact(path, i.name(), i.isStatic(), i.wildcard(), i.line())));
             x.references().forEach(r -> refs.add(new RefFact(path, r.ownerQualifiedName(), r.kind(), r.name(),
-                    r.argCount(), r.receiverKind(), r.receiverType(), r.line())));
+                    r.argCount(), r.receiverKind(), r.receiverType(), r.argTypes(), r.line())));
         }
         return new Input(files, symbols, imports, refs);
     }

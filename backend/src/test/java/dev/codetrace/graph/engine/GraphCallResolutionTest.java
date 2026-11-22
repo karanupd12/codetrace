@@ -256,6 +256,93 @@ class GraphCallResolutionTest {
         assertThat(from(r, "p.D#<init>()", EdgeType.CALLS)).isEmpty(); // implicit Object()
     }
 
+    // ---- overloads told apart by argument types ------------------------------------------------------------------------
+
+    @Test
+    void argumentTypesPickTheOnlyApplicableOverload() {
+        Result r = one("""
+                class A {
+                    void go(String s) { put(s); put(1); put(true); }
+                    void put(String s) {} void put(int n) {} void put(Boolean b) {}
+                }""");
+
+        assertThat(dsts(r, "p.A#go(String)", EdgeType.CALLS))
+                .containsExactlyInAnyOrder("p.A#put(String)", "p.A#put(int)", "p.A#put(Boolean)");
+        assertThat(from(r, "p.A#go(String)", EdgeType.CALLS)).allSatisfy(e -> {
+            assertThat(e.resolution()).isEqualTo(Resolution.RESOLVED);
+            assertThat(e.confidence()).isEqualTo(0.9);
+            assertThat(e.evidenceKind()).endsWith("ARGUMENT_TYPES");
+        });
+    }
+
+    @Test
+    void aSubtypeArgumentSelectsTheMatchingParameterType() {
+        Result r = one("""
+                class Shape {}
+                class Circle extends Shape {}
+                class Label {}
+                class A { void go() { draw(new Circle()); } void draw(Shape s) {} void draw(Label l) {} }""");
+
+        assertThat(dsts(r, "p.A#go()", EdgeType.CALLS)).filteredOn(d -> d.contains("draw")).containsExactly("p.A#draw(Shape)");
+    }
+
+    @Test
+    void primitivesBeatBoxingAndTheMoreSpecificOverloadWins() {
+        Result r = one("""
+                class A {
+                    void go() { f(5); g("x"); }
+                    void f(int a) {} void f(Object o) {}
+                    void g(Object o) {} void g(String s) {}
+                }""");
+
+        assertThat(dsts(r, "p.A#go()", EdgeType.CALLS)).containsExactlyInAnyOrder("p.A#f(int)", "p.A#g(String)");
+    }
+
+    @Test
+    void nullFitsAnyReferenceParameterButNotAPrimitive() {
+        Result r = one("class A { void go() { take(null); } void take(int n) {} void take(String s) {} }");
+
+        assertThat(dsts(r, "p.A#go()", EdgeType.CALLS)).containsExactly("p.A#take(String)");
+    }
+
+    @Test
+    void variableArityIsConsideredOnlyAfterFixedArityOverloads() {
+        Result r = one("class A { void go() { show(\"a\"); show(\"a\", \"b\"); } void show(String s) {} void show(String... all) {} }");
+
+        assertThat(dsts(r, "p.A#go()", EdgeType.CALLS))
+                .containsExactlyInAnyOrder("p.A#show(String)", "p.A#show(String...)");
+        assertThat(from(r, "p.A#go()", EdgeType.CALLS)).filteredOn(e -> GraphTestSupport.dst(r, e).equals("p.A#show(String)"))
+                .allSatisfy(e -> assertThat(e.evidenceKind()).endsWith("ARGUMENT_TYPES"));
+    }
+
+    @Test
+    void constructorOverloadsAreNarrowedByArgumentTypes() {
+        Result r = one("class B { B(String s) {} B(int n) {} } class A { void go() { new B(1); } }");
+
+        Edge e = call(r, "p.A#go()");
+        assertThat(GraphTestSupport.dst(r, e)).isEqualTo("p.B#<init>(int)");
+        assertThat(e.resolution()).isEqualTo(Resolution.RESOLVED);
+    }
+
+    @Test
+    void anArgumentWithoutATypeHintKeepsEveryOverload() {
+        Result r = one("class A { void go() { take(make()); } Object make() { return null; } void take(String s) {} void take(int n) {} }");
+
+        assertThat(from(r, "p.A#go()", EdgeType.CALLS)).filteredOn(e -> e.resolution() == Resolution.AMBIGUOUS).hasSize(2);
+    }
+
+    @Test
+    void typesOutsideTheRepositoryNeverRuleOutAnOverload() {
+        Result r = one("""
+                class A {
+                    void go(java.util.List<String> xs) { take(xs); }
+                    void take(Iterable<String> a) {} void take(Collection<String> b) {}
+                }""");
+
+        assertThat(from(r, "p.A#go(java.util.List<String>)", EdgeType.CALLS))
+                .filteredOn(e -> e.resolution() == Resolution.AMBIGUOUS).hasSize(2);
+    }
+
     // ---- type hierarchy bookkeeping ------------------------------------------------------------------------------------
 
     @Test

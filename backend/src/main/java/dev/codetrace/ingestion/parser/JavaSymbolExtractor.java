@@ -25,19 +25,32 @@ import com.github.javaparser.ast.body.Parameter;
 import com.github.javaparser.ast.body.RecordDeclaration;
 import com.github.javaparser.ast.body.TypeDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
+import com.github.javaparser.ast.expr.BinaryExpr;
+import com.github.javaparser.ast.expr.BooleanLiteralExpr;
 import com.github.javaparser.ast.expr.CastExpr;
+import com.github.javaparser.ast.expr.CharLiteralExpr;
+import com.github.javaparser.ast.expr.ClassExpr;
+import com.github.javaparser.ast.expr.DoubleLiteralExpr;
 import com.github.javaparser.ast.expr.EnclosedExpr;
 import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.FieldAccessExpr;
+import com.github.javaparser.ast.expr.IntegerLiteralExpr;
+import com.github.javaparser.ast.expr.LongLiteralExpr;
 import com.github.javaparser.ast.expr.MethodCallExpr;
 import com.github.javaparser.ast.expr.NameExpr;
+import com.github.javaparser.ast.expr.NullLiteralExpr;
 import com.github.javaparser.ast.expr.ObjectCreationExpr;
+import com.github.javaparser.ast.expr.StringLiteralExpr;
 import com.github.javaparser.ast.expr.SuperExpr;
+import com.github.javaparser.ast.expr.TextBlockLiteralExpr;
 import com.github.javaparser.ast.expr.ThisExpr;
+import com.github.javaparser.ast.expr.UnaryExpr;
 import com.github.javaparser.ast.nodeTypes.NodeWithModifiers;
 import com.github.javaparser.ast.nodeTypes.NodeWithTypeParameters;
 import com.github.javaparser.ast.stmt.ExplicitConstructorInvocationStmt;
+import com.github.javaparser.ast.type.ArrayType;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
+import com.github.javaparser.ast.type.PrimitiveType;
 import com.github.javaparser.ast.type.Type;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -59,9 +72,9 @@ import java.util.stream.Collectors;
  */
 public final class JavaSymbolExtractor {
     public static final String PARSER_VERSION = "javaparser-core-3.26.4";
-    public static final String EXTRACTION_METHOD = "java-declarations-v2";
-    /** Bumped when the set of extracted facts changes; the graph builder requires {@code >= 2} (references). */
-    public static final int EXTRACTION_VERSION = 2;
+    public static final String EXTRACTION_METHOD = "java-declarations-v3";
+    /** Bumped when the set of extracted facts changes; the graph builder requires the current version (argument type hints). */
+    public static final int EXTRACTION_VERSION = 3;
     private static final int MAX_MESSAGE = 300;
 
     public enum FileStatus { PARSED, PARTIAL, FAILED }
@@ -84,9 +97,12 @@ public final class JavaSymbolExtractor {
      * @param argCount     number of call arguments, or -1 for type references
      * @param receiverKind NONE (unqualified call), THIS, SUPER, TYPE (receiver type text known) or UNKNOWN
      * @param receiverType the receiver's type text when {@code receiverKind == TYPE}, else empty
+     * @param argTypes     one type hint per call argument as written in the caller (a primitive name, {@code String},
+     *                     a type name, {@code T[]} or {@code null}); {@code ""} when the text does not reveal the
+     *                     argument's type; empty for type references
      */
     public record Reference(String ownerQualifiedName, String kind, String name, int argCount, String receiverKind,
-                            String receiverType, int line) {
+                            String receiverType, List<String> argTypes, int line) {
     }
 
     public record FileExtraction(FileStatus status, String packageName, List<Import> imports, List<Symbol> symbols,
@@ -275,7 +291,7 @@ public final class JavaSymbolExtractor {
         String name = t.getNameWithScope();
         String first = name.contains(".") ? name.substring(0, name.indexOf('.')) : name;
         if (typeParams.contains(first)) return; // a generic type variable, not a declared type
-        refs.add(new Reference(owner, kind, name, -1, "NONE", "", line(t)));
+        refs.add(new Reference(owner, kind, name, -1, "NONE", "", List.of(), line(t)));
     }
 
     /** All type usages and calls inside one member. {@code searchScope} bounds local-variable type lookups. */
@@ -288,17 +304,19 @@ public final class JavaSymbolExtractor {
             Receiver r = call.getScope().map(s -> receiverOf(s, call, searchScope, chain, typeParams))
                     .orElse(Receiver.NONE);
             refs.add(new Reference(owner, "CALLS", call.getNameAsString(), call.getArguments().size(), r.kind(),
-                    r.type(), line(call)));
+                    r.type(), argumentTypes(call.getArguments(), call, searchScope, chain, typeParams), line(call)));
         }
         for (ObjectCreationExpr n : root.findAll(ObjectCreationExpr.class)) {
             String type = n.getType().getNameWithScope();
             String first = type.contains(".") ? type.substring(0, type.indexOf('.')) : type;
             Receiver r = typeParams.contains(first) ? Receiver.UNKNOWN : Receiver.type(type);
-            refs.add(new Reference(owner, "CALLS", "<init>", n.getArguments().size(), r.kind(), r.type(), line(n)));
+            refs.add(new Reference(owner, "CALLS", "<init>", n.getArguments().size(), r.kind(), r.type(),
+                    argumentTypes(n.getArguments(), n, searchScope, chain, typeParams), line(n)));
         }
         for (ExplicitConstructorInvocationStmt s : root.findAll(ExplicitConstructorInvocationStmt.class)) {
             Receiver r = s.isThis() ? Receiver.THIS : Receiver.SUPER;
-            refs.add(new Reference(owner, "CALLS", "<init>", s.getArguments().size(), r.kind(), "", line(s)));
+            refs.add(new Reference(owner, "CALLS", "<init>", s.getArguments().size(), r.kind(), "",
+                    argumentTypes(s.getArguments(), s, searchScope, chain, typeParams), line(s)));
         }
     }
 
@@ -353,6 +371,12 @@ public final class JavaSymbolExtractor {
     /** Declared (explicit) type of a local variable or parameter named {@code name} visible before {@code call}. */
     private static Optional<Receiver> declaredTypeInScope(String name, Node searchScope, Node call,
                                                           Set<String> typeParams) {
+        return declaredVariableType(name, searchScope, call)
+                .map(t -> t instanceof ClassOrInterfaceType ct ? typed(ct.getNameWithScope(), typeParams)
+                        : Receiver.UNKNOWN); // var, arrays, primitives, lambda params without a type
+    }
+
+    private static Optional<Type> declaredVariableType(String name, Node searchScope, Node call) {
         Position callPos = call.getBegin().orElse(null);
         Type best = null;
         boolean found = false;
@@ -375,23 +399,104 @@ public final class JavaSymbolExtractor {
                 found = true;
             }
         }
-        if (!found) return Optional.empty();
-        return Optional.of(best instanceof ClassOrInterfaceType ct ? typed(ct.getNameWithScope(), typeParams)
-                : Receiver.UNKNOWN); // var, arrays, primitives, lambda params without a type
+        return found ? Optional.of(best) : Optional.empty();
     }
 
     private static Optional<Receiver> fieldType(String name, List<TypeDeclaration<?>> chain, Set<String> typeParams) {
+        return declaredFieldType(name, chain).map(t -> t instanceof ClassOrInterfaceType ct
+                ? typed(ct.getNameWithScope(), typeParams) : Receiver.UNKNOWN);
+    }
+
+    private static Optional<Type> declaredFieldType(String name, List<TypeDeclaration<?>> chain) {
         for (TypeDeclaration<?> t : chain) {
             for (FieldDeclaration f : t.getFields()) {
                 for (VariableDeclarator v : f.getVariables()) {
-                    if (v.getNameAsString().equals(name)) {
-                        return Optional.of(v.getType() instanceof ClassOrInterfaceType ct
-                                ? typed(ct.getNameWithScope(), typeParams) : Receiver.UNKNOWN);
-                    }
+                    if (v.getNameAsString().equals(name)) return Optional.of(v.getType());
                 }
             }
         }
         return Optional.empty();
+    }
+
+    // ---- argument type hints ------------------------------------------------------------------------------------
+
+    private static List<String> argumentTypes(List<Expression> args, Node call, Node searchScope,
+                                              List<TypeDeclaration<?>> chain, Set<String> typeParams) {
+        List<String> hints = new ArrayList<>(args.size());
+        for (Expression a : args) hints.add(argumentType(a, call, searchScope, chain, typeParams));
+        return hints;
+    }
+
+    /**
+     * What the text says about an argument's static type, or {@code ""} when it says nothing reliable. Only literals,
+     * constructions, casts, declared variables and fields, {@code this}, string concatenation and comparisons are
+     * typed; the result of a method call, a lambda or a conditional expression is not.
+     */
+    private static String argumentType(Expression e, Node call, Node searchScope, List<TypeDeclaration<?>> chain,
+                                       Set<String> typeParams) {
+        while (e instanceof EnclosedExpr enclosed) e = enclosed.getInner();
+        if (e instanceof BooleanLiteralExpr) return "boolean";
+        if (e instanceof CharLiteralExpr) return "char";
+        if (e instanceof IntegerLiteralExpr) return "int";
+        if (e instanceof LongLiteralExpr) return "long";
+        if (e instanceof DoubleLiteralExpr d) {
+            String v = d.getValue();
+            boolean hex = v.startsWith("0x") || v.startsWith("0X");
+            return !hex && (v.endsWith("f") || v.endsWith("F")) ? "float" : "double";
+        }
+        if (e instanceof StringLiteralExpr || e instanceof TextBlockLiteralExpr) return "String";
+        if (e instanceof NullLiteralExpr) return "null";
+        if (e instanceof ClassExpr) return "Class";
+        if (e instanceof ObjectCreationExpr n) {
+            return n.getAnonymousClassBody().isPresent() ? "" : typeHint(n.getType().getNameWithScope(), typeParams);
+        }
+        if (e instanceof CastExpr c) return typeHint(c.getType(), typeParams);
+        if (e instanceof ThisExpr t) {
+            if (t.getTypeName().isPresent()) return typeHint(t.getTypeName().get().asString(), typeParams);
+            return chain.isEmpty() ? "" : chain.get(0).getNameAsString();
+        }
+        if (e instanceof NameExpr n) {
+            Optional<Type> local = declaredVariableType(n.getNameAsString(), searchScope, call);
+            if (local.isPresent()) return typeHint(local.get(), typeParams);
+            return declaredFieldType(n.getNameAsString(), chain).map(t -> typeHint(t, typeParams)).orElse("");
+        }
+        if (e instanceof FieldAccessExpr fa && fa.getScope() instanceof ThisExpr te && te.getTypeName().isEmpty()) {
+            return declaredFieldType(fa.getNameAsString(), chain).map(t -> typeHint(t, typeParams)).orElse("");
+        }
+        if (e instanceof UnaryExpr u) {
+            String inner = argumentType(u.getExpression(), call, searchScope, chain, typeParams);
+            return switch (u.getOperator()) {
+                case LOGICAL_COMPLEMENT -> "boolean";
+                case MINUS, PLUS -> Set.of("int", "long", "float", "double").contains(inner) ? inner : "";
+                default -> "";
+            };
+        }
+        if (e instanceof BinaryExpr b) {
+            return switch (b.getOperator()) {
+                case EQUALS, NOT_EQUALS, LESS, GREATER, LESS_EQUALS, GREATER_EQUALS, AND, OR -> "boolean";
+                case PLUS -> "String".equals(argumentType(b.getLeft(), call, searchScope, chain, typeParams))
+                        || "String".equals(argumentType(b.getRight(), call, searchScope, chain, typeParams))
+                        ? "String" : "";
+                default -> "";
+            };
+        }
+        return "";
+    }
+
+    /** A declared type as a hint: primitives by name, class types as written without generics, arrays as {@code T[]}. */
+    private static String typeHint(Type t, Set<String> typeParams) {
+        if (t instanceof PrimitiveType p) return p.asString();
+        if (t instanceof ClassOrInterfaceType c) return typeHint(c.getNameWithScope(), typeParams);
+        if (t instanceof ArrayType a) {
+            String component = typeHint(a.getComponentType(), typeParams);
+            return component.isEmpty() ? "" : component + "[]";
+        }
+        return ""; // var, lambda parameters without a type, wildcards, unions
+    }
+
+    private static String typeHint(String typeText, Set<String> typeParams) {
+        String first = typeText.contains(".") ? typeText.substring(0, typeText.indexOf('.')) : typeText;
+        return typeParams.contains(first) ? "" : typeText;
     }
 
     // ---- helpers --------------------------------------------------------------------------------------------

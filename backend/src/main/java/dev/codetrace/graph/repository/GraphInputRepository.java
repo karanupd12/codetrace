@@ -1,5 +1,6 @@
 package dev.codetrace.graph.repository;
 
+import dev.codetrace.common.util.ArgumentTypes;
 import dev.codetrace.graph.model.GraphModel.FileFact;
 import dev.codetrace.graph.model.GraphModel.ImportFact;
 import dev.codetrace.graph.model.GraphModel.Input;
@@ -40,12 +41,13 @@ public class GraphInputRepository {
                         rs.getBoolean("is_static"), rs.getBoolean("is_wildcard"), rs.getInt("line")))
                 .list();
         var refs = jdbc.sql("""
-                select path, owner_qualified_name, kind, name, arg_count, receiver_kind, receiver_type, line
+                select path, owner_qualified_name, kind, name, arg_count, receiver_kind, receiver_type, arg_types, line
                 from code_reference where job_id = :j""")
                 .param("j", indexJobId)
                 .query((rs, i) -> new RefFact(rs.getString("path"), rs.getString("owner_qualified_name"),
                         rs.getString("kind"), rs.getString("name"), rs.getInt("arg_count"),
-                        rs.getString("receiver_kind"), rs.getString("receiver_type"), rs.getInt("line")))
+                        rs.getString("receiver_kind"), rs.getString("receiver_type"),
+                        ArgumentTypes.decode(rs.getString("arg_types"), rs.getInt("arg_count")), rs.getInt("line")))
                 .list();
         return new Input(files, symbols, imports, refs);
     }

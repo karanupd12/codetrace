@@ -45,8 +45,9 @@ public final class GraphModel {
     public record ImportFact(String path, String name, boolean isStatic, boolean wildcard, int line) {
     }
 
+    /** {@code argTypes} holds one hint per call argument ({@code ""} = unknown); empty for type references. */
     public record RefFact(String path, String ownerQualifiedName, String kind, String name, int argCount,
-                          String receiverKind, String receiverType, int line) {
+                          String receiverKind, String receiverType, List<String> argTypes, int line) {
     }
 
     public record Input(List<FileFact> files, List<SymbolFact> symbols, List<ImportFact> imports, List<RefFact> refs) {

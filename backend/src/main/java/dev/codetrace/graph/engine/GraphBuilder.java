@@ -34,7 +34,7 @@ import java.util.UUID;
  */
 public final class GraphBuilder {
     /** Recorded on every snapshot and edge so results are traceable to the algorithm that produced them. */
-    public static final String VERSION = "graph-builder-1";
+    public static final String VERSION = "graph-builder-2";
     private static final Set<String> INCLUDED_STATUSES = Set.of("PARSED", "PARTIAL");
 
     public Result build(UUID snapshotId, Input in, Limits limits) {

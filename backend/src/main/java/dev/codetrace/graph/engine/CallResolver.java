@@ -12,8 +12,9 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Resolves call sites to methods or constructors by receiver, name and argument count. Argument <i>types</i> are not
- * checked, so a match by arity alone is reported with reduced confidence and equal-arity overloads stay AMBIGUOUS.
+ * Resolves call sites to methods or constructors by receiver, name and argument count, then narrows overloads that
+ * take the same number of arguments by the argument types the call site reveals ({@link OverloadFilter}). A match that
+ * rests on arity alone has reduced confidence, and overloads the argument types cannot separate stay AMBIGUOUS.
  * A hierarchy that reaches outside the repository is flagged instead of treated as proof of absence.
  */
 final class CallResolver {
@@ -25,19 +26,26 @@ final class CallResolver {
     private record Lookup(List<Node> exact, boolean nameExistsWithOtherArity, boolean incomplete, int namesAtLevel) {
     }
 
+    /** What the call site shows about its arguments, and where it is written (for resolving the hinted types). */
+    private record CallSite(List<String> argTypes, FileContext ctx, List<Node> chain) {
+    }
+
     private static final int MAX_HIERARCHY_DEPTH = 24;
 
     private final SymbolIndex index;
     private final TypeResolver types;
+    private final OverloadFilter overloads;
 
     CallResolver(SymbolIndex index, TypeResolver types) {
         this.index = index;
         this.types = types;
+        this.overloads = new OverloadFilter(index, types);
     }
 
     Outcome resolve(RefFact r, Node owner, FileContext ctx, List<Node> chain) {
         boolean ctor = r.name().equals("<init>");
         String shortName = r.name() + "/" + r.argCount();
+        CallSite site = new CallSite(r.argTypes(), ctx, chain);
         switch (r.receiverKind()) {
             case "TYPE": {
                 TypeResolver.Resolved rt = types.resolve(r.receiverType(), ctx, chain);
@@ -48,26 +56,26 @@ final class CallResolver {
                 }
                 Node t = rt.single();
                 String prefix = "RECEIVER_" + rt.evidenceKind() + "/";
-                return ctor ? constructor(t, r.argCount(), null, prefix, label)
-                        : fromLookup(lookup(t, r.name(), r.argCount(), false), prefix, t.qualifiedName() + "#" + shortName);
+                return ctor ? constructor(t, r.argCount(), null, prefix, label, site)
+                        : fromLookup(lookup(t, r.name(), r.argCount(), false), prefix, t.qualifiedName() + "#" + shortName, site);
             }
             case "THIS": {
                 if (chain.isEmpty()) return unresolved("RECEIVER_TYPE_UNKNOWN", "?#" + shortName, "THIS");
                 Node t = chain.get(0);
-                return ctor ? constructor(t, r.argCount(), owner, "THIS/", t.qualifiedName() + "#" + shortName)
-                        : fromLookup(lookup(t, r.name(), r.argCount(), false), "THIS/", t.qualifiedName() + "#" + shortName);
+                return ctor ? constructor(t, r.argCount(), owner, "THIS/", t.qualifiedName() + "#" + shortName, site)
+                        : fromLookup(lookup(t, r.name(), r.argCount(), false), "THIS/", t.qualifiedName() + "#" + shortName, site);
             }
             case "SUPER": {
                 if (chain.isEmpty()) return unresolved("RECEIVER_TYPE_UNKNOWN", "?#" + shortName, "SUPER");
                 Node t = chain.get(0);
-                if (ctor) return superConstructor(t, r.argCount(), t.qualifiedName() + "#super." + shortName);
+                if (ctor) return superConstructor(t, r.argCount(), t.qualifiedName() + "#super." + shortName, site);
                 if (index.supertypesOf(t).isEmpty()) {
                     return unresolved("SUPERTYPE_NOT_IN_REPOSITORY", t.qualifiedName() + "#super." + shortName, "SUPER");
                 }
-                return fromLookup(lookup(t, r.name(), r.argCount(), true), "SUPER/", t.qualifiedName() + "#super." + shortName);
+                return fromLookup(lookup(t, r.name(), r.argCount(), true), "SUPER/", t.qualifiedName() + "#super." + shortName, site);
             }
             case "NONE":
-                return unqualified(r, ctx, chain, shortName);
+                return unqualified(r, site, shortName);
             default:
                 return unresolved("RECEIVER_TYPE_UNKNOWN", "?#" + shortName, "UNKNOWN_RECEIVER");
         }
@@ -75,12 +83,14 @@ final class CallResolver {
 
     // ---- unqualified calls: enclosing scopes outward, then static imports --------------------------------------------
 
-    private Outcome unqualified(RefFact r, FileContext ctx, List<Node> chain, String shortName) {
+    private Outcome unqualified(RefFact r, CallSite site, String shortName) {
+        FileContext ctx = site.ctx();
+        List<Node> chain = site.chain();
         boolean anyArityMismatch = false;
         boolean anyIncomplete = false;
         for (Node t : chain) {
             Lookup l = lookup(t, r.name(), r.argCount(), false);
-            if (!l.exact().isEmpty()) return fromLookup(l, "ENCLOSING_SCOPE/", t.qualifiedName() + "#" + shortName);
+            if (!l.exact().isEmpty()) return fromLookup(l, "ENCLOSING_SCOPE/", t.qualifiedName() + "#" + shortName, site);
             anyArityMismatch |= l.nameExistsWithOtherArity();
             anyIncomplete |= l.incomplete();
         }
@@ -96,7 +106,7 @@ final class CallResolver {
             TypeResolver.Resolved rt = types.resolveQualified(typeFqn, ctx);
             if (rt.state() == Resolution.RESOLVED) {
                 Lookup l = lookup(rt.single(), r.name(), r.argCount(), false);
-                if (!l.exact().isEmpty()) return fromLookup(l, "STATIC_IMPORT/", rt.single().qualifiedName() + "#" + shortName);
+                if (!l.exact().isEmpty()) return fromLookup(l, "STATIC_IMPORT/", rt.single().qualifiedName() + "#" + shortName, site);
                 anyArityMismatch |= l.nameExistsWithOtherArity();
             } else {
                 anyIncomplete = true; // a static import from a type outside the repository may provide the method
@@ -138,15 +148,22 @@ final class CallResolver {
         return new Lookup(List.of(), otherArity, incomplete, 0);
     }
 
-    private Outcome fromLookup(Lookup l, String evidencePrefix, String dstName) {
-        if (l.exact().size() == 1) {
+    private Outcome fromLookup(Lookup l, String evidencePrefix, String dstName, CallSite site) {
+        List<Node> candidates = l.exact();
+        if (candidates.size() > 1) {
+            candidates = overloads.narrow(candidates, site.argTypes(), site.ctx(), site.chain());
+            if (candidates.size() == 1) { // the argument types rule out every other overload
+                return new Outcome(Resolution.RESOLVED, candidates, evidencePrefix + "ARGUMENT_TYPES", 0.9, "", dstName);
+            }
+        }
+        if (candidates.size() == 1) {
             boolean uniqueName = l.namesAtLevel() == 1;
-            return new Outcome(Resolution.RESOLVED, l.exact(), evidencePrefix + (uniqueName ? "UNIQUE_NAME" : "UNIQUE_NAME_AND_ARITY"),
+            return new Outcome(Resolution.RESOLVED, candidates, evidencePrefix + (uniqueName ? "UNIQUE_NAME" : "UNIQUE_NAME_AND_ARITY"),
                     uniqueName ? 1.0 : 0.9, "", dstName);
         }
-        if (l.exact().size() > 1) {
-            return new Outcome(Resolution.AMBIGUOUS, l.exact(), evidencePrefix + "SAME_ARITY_OVERLOADS",
-                    0.9 / l.exact().size(), "MULTIPLE_CANDIDATES", dstName);
+        if (candidates.size() > 1) {
+            return new Outcome(Resolution.AMBIGUOUS, candidates, evidencePrefix + "SAME_ARITY_OVERLOADS",
+                    0.9 / candidates.size(), "MULTIPLE_CANDIDATES", dstName);
         }
         String reason = l.nameExistsWithOtherArity() ? "ARITY_MISMATCH" : l.incomplete() ? "EXTERNAL_SUPERTYPE" : "METHOD_NOT_FOUND";
         return unresolved(reason, dstName, evidencePrefix + "NOT_FOUND");
@@ -154,7 +171,7 @@ final class CallResolver {
 
     // ---- constructors ----------------------------------------------------------------------------------------------------
 
-    private Outcome constructor(Node type, int argc, Node excludeSelf, String prefix, String dstName) {
+    private Outcome constructor(Node type, int argc, Node excludeSelf, String prefix, String dstName, CallSite site) {
         List<Node> ctors = new ArrayList<>();
         for (Node m : index.methodsOf(type)) {
             if (JavaSignatures.methodName(m.signature()).equals("<init>") && (excludeSelf == null || !m.id().equals(excludeSelf.id()))) ctors.add(m);
@@ -164,12 +181,12 @@ final class CallResolver {
             if (implicitConstructorCovers(type, argc, ctors)) return null; // implicit default / canonical record ctor
             return unresolved(ctors.isEmpty() ? "METHOD_NOT_FOUND" : "ARITY_MISMATCH", dstName, prefix + "NOT_FOUND");
         }
-        return fromLookup(new Lookup(exact, false, false, ctors.size()), prefix, dstName);
+        return fromLookup(new Lookup(exact, false, false, ctors.size()), prefix, dstName, site);
     }
 
-    private Outcome superConstructor(Node type, int argc, String dstName) {
+    private Outcome superConstructor(Node type, int argc, String dstName, CallSite site) {
         for (Node sup : index.supertypesOf(type)) {
-            if (!"INTERFACE".equals(sup.subtype())) return constructor(sup, argc, null, "SUPER/", dstName);
+            if (!"INTERFACE".equals(sup.subtype())) return constructor(sup, argc, null, "SUPER/", dstName, site);
         }
         if (index.incompleteSupertypes.contains(type.id())) {
             return unresolved("SUPERTYPE_NOT_IN_REPOSITORY", dstName, "SUPER");

@@ -1,5 +1,6 @@
 package dev.codetrace.ingestion.repository;
 
+import dev.codetrace.common.util.ArgumentTypes;
 import dev.codetrace.ingestion.model.IndexResult;
 import dev.codetrace.ingestion.parser.JavaSymbolExtractor;
 import java.util.ArrayList;
@@ -62,12 +63,12 @@ public class IndexResultRepository {
         for (IndexResult.ReferenceRecord rr : r.references()) {
             JavaSymbolExtractor.Reference x = rr.reference();
             refs.add(new Object[] {jobId, rr.path(), x.ownerQualifiedName(), x.kind(), x.name(), x.argCount(),
-                    x.receiverKind(), x.receiverType(), x.line()});
+                    x.receiverKind(), x.receiverType(), ArgumentTypes.encode(x.argTypes()), x.line()});
         }
         jdbc.batchUpdate("""
                 insert into code_reference (job_id, path, owner_qualified_name, kind, name, arg_count, receiver_kind,
-                    receiver_type, line)
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?)""", refs);
+                    receiver_type, arg_types, line)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", refs);
 
         List<Object[]> diags = new ArrayList<>();
         for (IndexResult.DiagnosticRecord d : r.diagnostics()) {

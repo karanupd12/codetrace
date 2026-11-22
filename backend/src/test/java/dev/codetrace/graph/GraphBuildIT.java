@@ -271,14 +271,16 @@ class GraphBuildIT {
                 where e.snapshot_id = ? and e.edge_type = 'CALLS' and e.resolution_state = 'RESOLVED'
                   and s.qualified_name = 'com.acme.shop.Order#addLine(String)'
                   and d.qualified_name = 'com.acme.shop.Order#addLine(String,int)'""", snapshotId)).isEqualTo(1);
-        // addLine(sku) from addAll: two equal-arity overloads, so the edge is AMBIGUOUS (and grouped), not guessed
+        // addLine(sku) from addAll: two equal-arity overloads (String / Line); the argument is a String, so only
+        // addLine(String) remains and the edge is RESOLVED on the argument types
         assertThat(count("""
-                select count(*) from dependency_edge e join code_node s on s.snapshot_id = e.snapshot_id and s.id = e.src_node_id
-                where e.snapshot_id = ? and e.resolution_state = 'AMBIGUOUS' and e.edge_type = 'CALLS'
-                  and s.qualified_name = 'com.acme.shop.Order#addAll(String...)'""", snapshotId)).isEqualTo(2);
-        assertThat(count("""
-                select count(distinct alternative_group) from dependency_edge
-                where snapshot_id = ? and resolution_state = 'AMBIGUOUS' and edge_type = 'CALLS'""", snapshotId)).isPositive();
+                select count(*) from dependency_edge e
+                  join code_node s on s.snapshot_id = e.snapshot_id and s.id = e.src_node_id
+                  join code_node d on d.snapshot_id = e.snapshot_id and d.id = e.dst_node_id
+                where e.snapshot_id = ? and e.edge_type = 'CALLS' and e.resolution_state = 'RESOLVED'
+                  and e.evidence_kind like '%ARGUMENT_TYPES' and e.confidence = 0.9
+                  and s.qualified_name = 'com.acme.shop.Order#addAll(String...)'
+                  and d.qualified_name = 'com.acme.shop.Order#addLine(String)'""", snapshotId)).isEqualTo(1);
         // unknown territory stays unresolved with a reason and no target
         assertThat(count("""
                 select count(*) from dependency_edge where snapshot_id = ? and resolution_state = 'UNRESOLVED'

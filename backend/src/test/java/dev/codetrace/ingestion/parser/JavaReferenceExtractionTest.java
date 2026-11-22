@@ -208,6 +208,48 @@ class JavaReferenceExtractionTest {
         assertThat(x.references()).isNotEmpty().allSatisfy(r -> assertThat(r.line()).isPositive());
     }
 
+    // ---- argument type hints -----------------------------------------------------------------------------------------
+
+    @Test
+    void callArgumentsCarryTypeHintsFromLiteralsConstructionsCastsAndDeclaredNames() {
+        FileExtraction x = parse("""
+                class A {
+                    private final Foo field = null;
+                    void go(String name, int[] data, Foo foo) {
+                        long big = 1L;
+                        use(true, 'c', 1, 2L, 1.5, 2f, "s", null, name, data, foo, field, big, this, new Bar(), (Baz) o, Foo.class);
+                    }
+                }""");
+
+        assertThat(call(x, "p.A#go(String,int[],Foo)", "use").argTypes()).containsExactly(
+                "boolean", "char", "int", "long", "double", "float", "String", "null", "String", "int[]", "Foo", "Foo",
+                "long", "A", "Bar", "Baz", "Class");
+    }
+
+    @Test
+    void argumentsWhoseTypeTheTextDoesNotRevealAreEmptyHints() {
+        FileExtraction x = parse("class A<T> { void go(T t) { use(make(), t, x -> x, A::go, flag ? 1 : 2, undeclared); } }");
+
+        assertThat(call(x, "p.A#go(T)", "use").argTypes()).containsExactly("", "", "", "", "", "");
+    }
+
+    @Test
+    void concatenationComparisonsAndSignedNumbersAreTyped() {
+        FileExtraction x = parse("class A { void go(int n, boolean ok) { use(\"a\" + n, n > 1, !ok, -5, -2.5); } }");
+
+        assertThat(call(x, "p.A#go(int,boolean)", "use").argTypes())
+                .containsExactly("String", "boolean", "boolean", "int", "double");
+    }
+
+    @Test
+    void constructorCallsRecordArgumentHintsToo() {
+        FileExtraction x = parse("class A extends B { A(String s) { super(s, 1); } A() { this(\"x\"); } void make() { new C(2L); } }");
+
+        assertThat(call(x, "p.A#<init>(String)", "<init>").argTypes()).containsExactly("String", "int");
+        assertThat(call(x, "p.A#<init>()", "<init>").argTypes()).containsExactly("String");
+        assertThat(call(x, "p.A#make()", "<init>").argTypes()).containsExactly("long");
+    }
+
     @Test
     void malformedFilesStillReturnWhateverWasRecoverable() {
         FileExtraction x = extractor.extract("package p; class A { void ok() { run(); } void bad( { } }");
