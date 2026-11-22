@@ -1,6 +1,7 @@
 package dev.codetrace.symbols.controller;
 
 import dev.codetrace.common.web.Page;
+import dev.codetrace.symbols.model.IndexedEndpoint;
 import dev.codetrace.symbols.model.IndexedSymbol;
 import dev.codetrace.symbols.model.ParseDiagnostic;
 import dev.codetrace.symbols.service.SymbolService;
@@ -12,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Read API over the symbols and diagnostics extracted by one index job. All results are bounded. */
+/** Read API over the symbols, HTTP endpoints and diagnostics extracted by one index job. All results are bounded. */
 @RestController
 @Profile("api")
 @RequestMapping("/api/v1/index-jobs/{jobId}")
@@ -29,6 +30,12 @@ public class SymbolController {
                                        @RequestParam(defaultValue = "50") int limit,
                                        @RequestParam(defaultValue = "0") int offset) {
         return symbols.search(jobId, kind, q, limit, offset);
+    }
+
+    @GetMapping("/endpoints")
+    public Page<IndexedEndpoint> endpoints(@PathVariable UUID jobId, @RequestParam(defaultValue = "50") int limit,
+                                           @RequestParam(defaultValue = "0") int offset) {
+        return symbols.endpoints(jobId, limit, offset);
     }
 
     @GetMapping("/diagnostics")

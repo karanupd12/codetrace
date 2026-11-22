@@ -7,8 +7,10 @@ import dev.codetrace.jobs.model.Job;
 import dev.codetrace.jobs.model.JobOperation;
 import dev.codetrace.jobs.service.JobService;
 import dev.codetrace.symbols.model.IndexedSymbol;
+import dev.codetrace.symbols.model.IndexedEndpoint;
 import dev.codetrace.symbols.model.ParseDiagnostic;
 import dev.codetrace.symbols.repository.SymbolRepository;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -34,6 +36,19 @@ public class SymbolService {
             throw ApiException.badRequest("kind must be TYPE, METHOD or FIELD.");
         }
         return symbols.search(jobId, kind, query, Bounds.limit(limit, MAX_LIMIT), Bounds.offset(offset));
+    }
+
+    /** Endpoints of one index job, read by impact analysis; at most this many are compared. */
+    public static final int MAX_ENDPOINTS = 5000;
+
+    public Page<IndexedEndpoint> endpoints(UUID jobId, int limit, int offset) {
+        requireIndexJob(jobId);
+        return symbols.endpoints(jobId, Bounds.limit(limit, MAX_LIMIT), Bounds.offset(offset));
+    }
+
+    /** Every endpoint of an index job (at most {@link #MAX_ENDPOINTS}). */
+    public List<IndexedEndpoint> allEndpoints(UUID jobId) {
+        return symbols.allEndpoints(jobId, MAX_ENDPOINTS);
     }
 
     public Page<ParseDiagnostic> diagnostics(UUID jobId, int limit, int offset) {

@@ -1,6 +1,7 @@
 package dev.codetrace.symbols.repository;
 
 import dev.codetrace.symbols.model.IndexedSymbol;
+import dev.codetrace.symbols.model.IndexedEndpoint;
 import dev.codetrace.symbols.model.ParseDiagnostic;
 import dev.codetrace.common.util.SqlLike;
 import dev.codetrace.common.web.Page;
@@ -46,6 +47,30 @@ public class SymbolRepository {
                 rs.getInt("start_line"), rs.getInt("end_line"), rs.getString("extraction_method"),
                 rs.getString("parser_version"), rs.getString("commit_hash"))).list();
         return new Page<>(new ArrayList<>(items), limit, offset, total);
+    }
+
+    private static final String ENDPOINT_SELECT = """
+            select http_method, route, handler_qualified_name, path, line, framework, reason from code_endpoint
+            where job_id = :j order by route, http_method, handler_qualified_name, id""";
+
+    public Page<IndexedEndpoint> endpoints(UUID jobId, int limit, int offset) {
+        long total = jdbc.sql("select count(*) from code_endpoint where job_id = :j").param("j", jobId)
+                .query(Long.class).single();
+        List<IndexedEndpoint> items = jdbc.sql(ENDPOINT_SELECT + " limit :lim offset :off")
+                .param("j", jobId).param("lim", limit).param("off", offset).query(SymbolRepository::endpoint).list();
+        return new Page<>(items, limit, offset, total);
+    }
+
+    /** Every endpoint of an index job, at most {@code limit}. */
+    public List<IndexedEndpoint> allEndpoints(UUID jobId, int limit) {
+        return jdbc.sql(ENDPOINT_SELECT + " limit :lim").param("j", jobId).param("lim", limit)
+                .query(SymbolRepository::endpoint).list();
+    }
+
+    private static IndexedEndpoint endpoint(java.sql.ResultSet rs, int i) throws java.sql.SQLException {
+        return new IndexedEndpoint(rs.getString("http_method"), rs.getString("route"),
+                rs.getString("handler_qualified_name"), rs.getString("path"), rs.getInt("line"),
+                rs.getString("framework"), rs.getString("reason"));
     }
 
     public Page<ParseDiagnostic> diagnostics(UUID jobId, int limit, int offset) {

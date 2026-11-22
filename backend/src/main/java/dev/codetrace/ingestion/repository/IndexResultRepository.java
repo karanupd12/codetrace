@@ -29,7 +29,8 @@ public class IndexResultRepository {
 
     /** Replaces this job's stored results; returns the number of symbols stored. Call inside a transaction. */
     public int write(UUID jobId, UUID repositoryId, String commitHash, IndexResult r) {
-        for (String table : List.of("indexed_file", "code_symbol", "code_import", "code_reference", "parse_diagnostic")) {
+        for (String table : List.of("indexed_file", "code_symbol", "code_import", "code_reference", "parse_diagnostic",
+                "code_endpoint")) {
             jdbc.update("delete from " + table + " where job_id = ?", jobId);
         }
 
@@ -85,6 +86,16 @@ public class IndexResultRepository {
         jdbc.batchUpdate("""
                 insert into parse_diagnostic (job_id, path, severity, code, message, line)
                 values (?, ?, ?, ?, ?, ?)""", diags);
+
+        List<Object[]> endpoints = new ArrayList<>();
+        for (IndexResult.EndpointRecord e : r.endpoints()) {
+            JavaSymbolExtractor.Endpoint x = e.endpoint();
+            endpoints.add(new Object[] {jobId, e.path(), x.handlerQualifiedName(), x.httpMethod(), x.route(), x.framework(),
+                    x.reason(), x.line()});
+        }
+        jdbc.batchUpdate("""
+                insert into code_endpoint (job_id, path, handler_qualified_name, http_method, route, framework, reason, line)
+                values (?, ?, ?, ?, ?, ?, ?, ?)""", endpoints);
 
         if (!r.reused().isEmpty()) copyReused(jobId, repositoryId, commitHash, r);
 
@@ -145,6 +156,11 @@ public class IndexResultRepository {
                 insert into parse_diagnostic (job_id, path, severity, code, message, line)
                 select ?, m.path, d.severity, d.code, d.message, d.line
                   from parse_diagnostic d join %s on d.path = m.base_path where d.job_id = ?""".formatted(mapping),
+                ps -> bind(ps, jobId, null, null, paths, basePaths, r.baseJobId()));
+        jdbc.update("""
+                insert into code_endpoint (job_id, path, handler_qualified_name, http_method, route, framework, reason, line)
+                select ?, m.path, x.handler_qualified_name, x.http_method, x.route, x.framework, x.reason, x.line
+                  from code_endpoint x join %s on x.path = m.base_path where x.job_id = ?""".formatted(mapping),
                 ps -> bind(ps, jobId, null, null, paths, basePaths, r.baseJobId()));
     }
 

@@ -12,7 +12,8 @@ import java.util.UUID;
  */
 public record IndexResult(String parserVersion, int filesParsed, int filesSkipped, List<FileRecord> files,
                           List<SymbolRecord> symbols, List<ImportRecord> imports, List<ReferenceRecord> references,
-                          List<DiagnosticRecord> diagnostics, UUID baseJobId, List<ReusedFile> reused) {
+                          List<DiagnosticRecord> diagnostics, List<EndpointRecord> endpoints, UUID baseJobId,
+                          List<ReusedFile> reused) {
 
     public record ReferenceRecord(String path, JavaSymbolExtractor.Reference reference) {
     }
@@ -29,6 +30,9 @@ public record IndexResult(String parserVersion, int filesParsed, int filesSkippe
     }
 
     public record DiagnosticRecord(String path, JavaSymbolExtractor.Diagnostic diagnostic) {
+    }
+
+    public record EndpointRecord(String path, JavaSymbolExtractor.Endpoint endpoint) {
     }
 
     /** A file whose facts are copied from the base index, where the same blob was stored under {@code basePath}. */

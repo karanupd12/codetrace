@@ -72,9 +72,9 @@ import java.util.stream.Collectors;
  */
 public final class JavaSymbolExtractor {
     public static final String PARSER_VERSION = "javaparser-core-3.26.4";
-    public static final String EXTRACTION_METHOD = "java-declarations-v3";
-    /** Bumped when the set of extracted facts changes; the graph builder requires the current version (argument type hints). */
-    public static final int EXTRACTION_VERSION = 3;
+    public static final String EXTRACTION_METHOD = "java-declarations-v4";
+    /** Bumped when the set of extracted facts changes; the graph builder requires the current version (HTTP endpoints). */
+    public static final int EXTRACTION_VERSION = 4;
     private static final int MAX_MESSAGE = 300;
 
     public enum FileStatus { PARSED, PARTIAL, FAILED }
@@ -105,8 +105,20 @@ public final class JavaSymbolExtractor {
                             String receiverType, List<String> argTypes, int line) {
     }
 
+    /**
+     * An HTTP endpoint declared by the method {@code handlerQualifiedName}.
+     *
+     * @param httpMethod GET, POST, ..., ANY when the mapping accepts every method, or {@code ?} when not a literal
+     * @param route      the joined route, e.g. {@code /orders/{id}}; empty when a path is not a literal
+     * @param framework  SPRING_MVC or JAX_RS
+     * @param reason     why part of the endpoint is unknown (ROUTE_NOT_LITERAL, METHOD_NOT_LITERAL), else empty
+     */
+    public record Endpoint(String handlerQualifiedName, String httpMethod, String route, String framework, String reason,
+                           int line) {
+    }
+
     public record FileExtraction(FileStatus status, String packageName, List<Import> imports, List<Symbol> symbols,
-                                 List<Reference> references, List<Diagnostic> diagnostics) {
+                                 List<Reference> references, List<Diagnostic> diagnostics, List<Endpoint> endpoints) {
     }
 
     private record Receiver(String kind, String type) {
@@ -136,7 +148,7 @@ public final class JavaSymbolExtractor {
             result = parser.parse(source);
         } catch (RuntimeException | StackOverflowError e) {
             return new FileExtraction(FileStatus.FAILED, "", List.of(), List.of(), List.of(),
-                    List.of(new Diagnostic("ERROR", "PARSER_CRASH", e.getClass().getSimpleName(), 0)));
+                    List.of(new Diagnostic("ERROR", "PARSER_CRASH", e.getClass().getSimpleName(), 0)), List.of());
         }
 
         List<Diagnostic> diagnostics = new ArrayList<>();
@@ -145,7 +157,7 @@ public final class JavaSymbolExtractor {
             diagnostics.add(new Diagnostic("ERROR", "SYNTAX_ERROR", truncate(p.getMessage()), line));
         }
         if (result.getResult().isEmpty()) {
-            return new FileExtraction(FileStatus.FAILED, "", List.of(), List.of(), List.of(), diagnostics);
+            return new FileExtraction(FileStatus.FAILED, "", List.of(), List.of(), List.of(), diagnostics, List.of());
         }
 
         CompilationUnit cu = result.getResult().get();
@@ -157,22 +169,23 @@ public final class JavaSymbolExtractor {
         }
         List<Symbol> symbols = new ArrayList<>();
         List<Reference> references = new ArrayList<>();
+        List<Endpoint> endpoints = new ArrayList<>();
         try {
             for (TypeDeclaration<?> t : cu.getTypes()) {
-                visitType(t, pkg.isEmpty() ? null : pkg, symbols, references, Set.of(), List.of());
+                visitType(t, pkg.isEmpty() ? null : pkg, symbols, references, endpoints, Set.of(), List.of());
             }
         } catch (RuntimeException | StackOverflowError e) {
             diagnostics.add(new Diagnostic("ERROR", "EXTRACTION_ERROR", e.getClass().getSimpleName(), 0));
-            return new FileExtraction(FileStatus.PARTIAL, pkg, imports, symbols, references, diagnostics);
+            return new FileExtraction(FileStatus.PARTIAL, pkg, imports, symbols, references, diagnostics, endpoints);
         }
         FileStatus status = diagnostics.isEmpty() ? FileStatus.PARSED : FileStatus.PARTIAL;
-        return new FileExtraction(status, pkg, imports, symbols, references, diagnostics);
+        return new FileExtraction(status, pkg, imports, symbols, references, diagnostics, endpoints);
     }
 
     // ---- declarations ---------------------------------------------------------------------------------------
 
     private void visitType(TypeDeclaration<?> type, String parentQn, List<Symbol> out, List<Reference> refs,
-                           Set<String> outerTypeParams, List<TypeDeclaration<?>> outerChain) {
+                           List<Endpoint> endpoints, Set<String> outerTypeParams, List<TypeDeclaration<?>> outerChain) {
         String qn = parentQn == null ? type.getNameAsString() : parentQn + "." + type.getNameAsString();
         out.add(new Symbol("TYPE", typeSubtype(type), type.getNameAsString(), qn, "", parentOf(parentQn),
                 modifiers(type), line(type), endLine(type)));
@@ -203,10 +216,11 @@ public final class JavaSymbolExtractor {
 
         for (BodyDeclaration<?> member : type.getMembers()) {
             if (member instanceof TypeDeclaration<?> nested) {
-                visitType(nested, qn, out, refs, typeParams, chain);
+                visitType(nested, qn, out, refs, endpoints, typeParams, chain);
             } else if (member instanceof MethodDeclaration m) {
                 Symbol s = callable(m, m.getNameAsString(), qn);
                 out.add(s);
+                endpoints.addAll(EndpointExtractor.of(m, s.qualifiedName(), type));
                 collect(m, s.qualifiedName(), withTypeParams(typeParams, m), chain, m, refs);
             } else if (member instanceof ConstructorDeclaration c) {
                 Symbol s = callable(c, "<init>", qn);

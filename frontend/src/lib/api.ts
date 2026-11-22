@@ -420,3 +420,18 @@ export const listEdgeChanges = (
   q.set("offset", String(opts.offset ?? 0));
   return request<Page<EdgeChange>>(`${comparePath(base, head)}/edges?${q}`, undefined, signal);
 };
+
+// ---- HTTP endpoints ----
+
+export type Endpoint = {
+  httpMethod: string;
+  route: string;
+  handlerQualifiedName: string;
+  path: string;
+  line: number;
+  framework: "SPRING_MVC" | "JAX_RS";
+  reason: string;
+};
+
+export const listEndpoints = (jobId: string, limit: number, signal?: AbortSignal) =>
+  request<Page<Endpoint>>(`/api/v1/index-jobs/${jobId}/endpoints?limit=${limit}`, undefined, signal);

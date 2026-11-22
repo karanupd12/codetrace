@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { listDiagnostics, searchSymbols, type Diagnostic, type Page, type CodeSymbol } from "@/lib/api";
+import {
+  listDiagnostics,
+  listEndpoints,
+  searchSymbols,
+  type CodeSymbol,
+  type Diagnostic,
+  type Endpoint,
+  type Page,
+} from "@/lib/api";
 import styles from "../../page.module.css";
 
 const PAGE = 25;
@@ -12,6 +20,7 @@ export default function SymbolBrowser({ jobId }: { jobId: string }) {
   const [offset, setOffset] = useState(0);
   const [symbols, setSymbols] = useState<Page<CodeSymbol> | null>(null);
   const [diagnostics, setDiagnostics] = useState<Page<Diagnostic> | null>(null);
+  const [endpoints, setEndpoints] = useState<Page<Endpoint> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -36,6 +45,9 @@ export default function SymbolBrowser({ jobId }: { jobId: string }) {
     const ctrl = new AbortController();
     listDiagnostics(jobId, 20, ctrl.signal)
       .then(setDiagnostics)
+      .catch(() => undefined);
+    listEndpoints(jobId, 200, ctrl.signal)
+      .then(setEndpoints)
       .catch(() => undefined);
     return () => ctrl.abort();
   }, [jobId]);
@@ -97,6 +109,30 @@ export default function SymbolBrowser({ jobId }: { jobId: string }) {
           </p>
         )}
       </section>
+
+      {endpoints && endpoints.total > 0 && (
+        <section className={styles.card}>
+          <h2>HTTP endpoints ({endpoints.total})</h2>
+          <table className={styles.table}>
+            <thead>
+              <tr><th>Method</th><th>Route</th><th>Handler</th><th>File : line</th></tr>
+            </thead>
+            <tbody>
+              {endpoints.items.map((e, i) => (
+                <tr key={i}>
+                  <td>{e.httpMethod}</td>
+                  <td>{e.route ? <code>{e.route}</code> : <span className={styles.muted}>not a literal</span>}</td>
+                  <td><code>{e.handlerQualifiedName}</code></td>
+                  <td className={styles.muted}>{e.path}:{e.line}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {endpoints.total > endpoints.items.length && (
+            <p className={styles.muted}>Showing the first {endpoints.items.length}.</p>
+          )}
+        </section>
+      )}
 
       {diagnostics && diagnostics.total > 0 && (
         <section className={styles.card}>

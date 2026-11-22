@@ -258,7 +258,7 @@ class RepositoryIndexingIT {
     @Order(6)
     void referencesAreStoredAsUnresolvedFactsAndTheJobRecordsItsExtractionVersion() {
         assertThat(jdbc.queryForObject("select extraction_version from index_job where id = ?", Integer.class,
-                indexJobId)).isEqualTo(3);
+                indexJobId)).isEqualTo(4);
         // Order.addLine(String) calls the overload addLine(sku, 1) with no receiver: a fact, not a resolved edge
         assertThat(jdbc.queryForObject("""
                 select count(*) from code_reference where job_id = ? and kind = 'CALLS' and name = 'addLine'
@@ -392,7 +392,7 @@ class RepositoryIndexingIT {
         await().atMost(Duration.ofSeconds(30)).until(() -> jdbc.queryForObject(
                 "select extraction_version from index_job where id = ?", Integer.class, indexJobId) != null);
         assertThat(jdbc.queryForObject("select extraction_version from index_job where id = ?", Integer.class, indexJobId))
-                .isEqualTo(3);
+                .isEqualTo(4);
         // replaced, not duplicated
         assertThat(jdbc.queryForObject("select count(*) from code_reference where job_id = ?", Integer.class, indexJobId))
                 .isEqualTo(refsBefore);

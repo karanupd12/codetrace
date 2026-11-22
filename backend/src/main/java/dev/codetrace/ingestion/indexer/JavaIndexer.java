@@ -59,6 +59,7 @@ public class JavaIndexer {
         List<ImportRecord> imports = new ArrayList<>();
         List<IndexResult.ReferenceRecord> references = new ArrayList<>();
         List<DiagnosticRecord> diagnostics = new ArrayList<>();
+        List<IndexResult.EndpointRecord> endpoints = new ArrayList<>();
         List<ReusedFile> reused = new ArrayList<>();
         int reusedSymbols = 0;
         int reusedReferences = 0;
@@ -137,6 +138,7 @@ public class JavaIndexer {
                     for (var i : x.imports()) imports.add(new ImportRecord(path, i));
                     for (var r : x.references()) references.add(new IndexResult.ReferenceRecord(path, r));
                     for (var d : x.diagnostics()) diagnostics.add(new DiagnosticRecord(path, d));
+                    for (var e : x.endpoints()) endpoints.add(new IndexResult.EndpointRecord(path, e));
                     if (x.status() != JavaSymbolExtractor.FileStatus.FAILED) parsed++;
                     checkFactLimits(symbols.size() + reusedSymbols, references.size() + reusedReferences);
                 }
@@ -145,7 +147,7 @@ public class JavaIndexer {
             throw new JobFailureException(Category.GIT_ERROR, "Could not read revision contents.", e);
         }
         return new IndexResult(JavaSymbolExtractor.PARSER_VERSION, parsed, skipped, files, symbols, imports, references,
-                diagnostics, reused.isEmpty() ? null : reusable.jobId(), reused);
+                diagnostics, endpoints, reused.isEmpty() ? null : reusable.jobId(), reused);
     }
 
     private void checkFactLimits(int symbols, int references) {

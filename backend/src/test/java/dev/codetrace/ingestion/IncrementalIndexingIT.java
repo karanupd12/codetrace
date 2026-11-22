@@ -67,14 +67,14 @@ class IncrementalIndexingIT {
         root = Files.createTempDirectory("codetrace-incremental-it-").toRealPath();
         repoDir = Files.createDirectories(root.resolve("shop"));
         first = GitFixtures.createRepo(repoDir, Map.of(
-                "src/p/A.java", Entry.file("package p; import java.util.List; public class A { List<B> all; B b = new B(); void run() { b.go(1); b.go(\"x\"); } }"),
+                "src/p/A.java", Entry.file("package p; import java.util.List; public class A { List<B> all; B b = new B(); @org.springframework.web.bind.annotation.GetMapping(\"/run\") void run() { b.go(1); b.go(\"x\"); } }"),
                 "src/p/B.java", Entry.file("package p; public class B { void go(int n) {} void go(String s) {} }"),
                 "src/p/C.java", Entry.file("package p; public class C extends A { void more() { run(); } }"),
                 "src/p/Broken.java", Entry.file("package p; public class Broken {"),
                 "test/p/ATest.java", Entry.file("package p; class ATest { void t() { new A().run(); } }")));
         try (Repository repo = open()) {
             second = GitFixtures.commit(repo, Map.of(
-                    "src/p/A.java", Entry.file("package p; import java.util.List; public class A { List<B> all; B b = new B(); void run() { b.go(1); b.go(\"x\"); } }"),
+                    "src/p/A.java", Entry.file("package p; import java.util.List; public class A { List<B> all; B b = new B(); @org.springframework.web.bind.annotation.GetMapping(\"/run\") void run() { b.go(1); b.go(\"x\"); } }"),
                     "src/p/B.java", Entry.file("package p; public class B { void go(int n) {} void go(String s) {} void stop() {} }"),
                     "src/q/C.java", Entry.file("package p; public class C extends A { void more() { run(); } }"),
                     "src/p/Broken.java", Entry.file("package p; public class Broken {"),
@@ -179,9 +179,15 @@ class IncrementalIndexingIT {
                 "select concat_ws('|', path, kind, subtype, qualified_name, signature, parent_qualified_name, modifiers, start_line, end_line) from code_symbol where job_id = ?",
                 "select concat_ws('|', path, imported_name, is_static, is_wildcard, line) from code_import where job_id = ?",
                 "select concat_ws('|', path, owner_qualified_name, kind, name, arg_count, receiver_kind, receiver_type, arg_types, line) from code_reference where job_id = ?",
-                "select concat_ws('|', path, severity, code, message, line) from parse_diagnostic where job_id = ?")) {
+                "select concat_ws('|', path, severity, code, message, line) from parse_diagnostic where job_id = ?",
+                "select concat_ws('|', path, handler_qualified_name, http_method, route, framework, reason, line) from code_endpoint where job_id = ?")) {
             assertThat(rows(sql, incrementalJob)).as(sql).isNotEmpty().isEqualTo(rows(sql, fullJob));
         }
+
+        JsonNode endpoints = get("/api/v1/index-jobs/" + incrementalJob + "/endpoints");
+        assertThat(endpoints.get("total").asInt()).isEqualTo(1);
+        assertThat(endpoints.at("/items/0/route").asText()).isEqualTo("/run");
+        assertThat(endpoints.at("/items/0/handlerQualifiedName").asText()).isEqualTo("p.A#run()");
 
         UUID snapshot = UUID.randomUUID();
         Limits limits = new Limits(100_000, 1_000_000);
