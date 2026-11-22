@@ -218,13 +218,24 @@ public final class GraphBuilder {
         return new Node(id, type, qn, sig, simple, subtype, path, start, end, modifiers);
     }
 
-    /** Collects edges, merging duplicates (same source, type, target) into one edge with an occurrence count. */
+    /**
+     * Collects edges, merging duplicates (same source, type, target) into one edge with an occurrence count. When two
+     * call sites narrow to overlapping but different candidate sets, the shared edge ties their alternative groups
+     * together, so the groups are united: every edge keeps a group of at least two candidates.
+     */
     private static final class EdgeSink {
         private final Map<String, Edge> edges = new LinkedHashMap<>();
+        private final Map<String, String> groupParent = new HashMap<>();
         private final int max;
 
         EdgeSink(int max) {
             this.max = max;
+        }
+
+        private String groupRoot(String group) {
+            String root = group;
+            while (groupParent.containsKey(root)) root = groupParent.get(root);
+            return root;
         }
 
         void add(Node src, EdgeType type, Node dst, String dstName, Resolution res, double conf, String evidenceKind,
@@ -233,6 +244,11 @@ public final class GraphBuilder {
                     + "|" + res;
             Edge existing = edges.get(key);
             if (existing != null) {
+                if (res == Resolution.AMBIGUOUS) {
+                    String kept = groupRoot(existing.alternativeGroup());
+                    String merged = groupRoot(group);
+                    if (!kept.equals(merged)) groupParent.put(merged, kept); // the earlier group absorbs the later one
+                }
                 edges.put(key, new Edge(existing.srcId(), existing.type(), existing.dstId(), existing.dstName(),
                         existing.resolution(), existing.confidence(), existing.evidenceKind(), existing.reason(),
                         existing.alternativeGroup(), existing.evidencePath(), existing.evidenceLine(),
@@ -246,8 +262,17 @@ public final class GraphBuilder {
                     reason, group, path, line, 1));
         }
 
+        private Edge withUnitedGroup(Edge e) {
+            if (e.alternativeGroup().isEmpty()) return e;
+            String root = groupRoot(e.alternativeGroup());
+            if (root.equals(e.alternativeGroup())) return e;
+            return new Edge(e.srcId(), e.type(), e.dstId(), e.dstName(), e.resolution(), e.confidence(), e.evidenceKind(),
+                    e.reason(), root, e.evidencePath(), e.evidenceLine(), e.occurrences());
+        }
+
         List<Edge> sorted() {
-            return edges.values().stream().sorted(Comparator.comparing((Edge e) -> e.srcId().toString())
+            return edges.values().stream().map(this::withUnitedGroup)
+                    .sorted(Comparator.comparing((Edge e) -> e.srcId().toString())
                     .thenComparing(Edge::type).thenComparing(Edge::resolution)
                     .thenComparing(e -> e.dstId() == null ? "" : e.dstId().toString())
                     .thenComparing(e -> e.dstName() == null ? "" : e.dstName())).toList();

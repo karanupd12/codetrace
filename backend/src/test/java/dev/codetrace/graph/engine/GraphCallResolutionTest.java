@@ -343,6 +343,26 @@ class GraphCallResolutionTest {
                 .filteredOn(e -> e.resolution() == Resolution.AMBIGUOUS).hasSize(2);
     }
 
+    @Test
+    void overlappingCandidateSetsOfOneCallerShareOneAlternativeGroup() {
+        Result r = one("""
+                interface X {} interface Y {} interface Z {}
+                class XY implements X, Y {}
+                class YZ implements Y, Z {}
+                class A {
+                    void go() {
+                        take(new XY());
+                        take(new YZ());
+                    }
+                    void take(X x) {} void take(Y y) {} void take(Z z) {}
+                }""");
+
+        List<Edge> ambiguous = from(r, "p.A#go()", EdgeType.CALLS).stream()
+                .filter(e -> e.resolution() == Resolution.AMBIGUOUS).toList();
+        assertThat(ambiguous).hasSize(3);
+        assertThat(ambiguous.stream().map(Edge::alternativeGroup).distinct()).hasSize(1);
+    }
+
     // ---- type hierarchy bookkeeping ------------------------------------------------------------------------------------
 
     @Test
