@@ -7,7 +7,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import dev.codetrace.jobs.JobFailureException.Category;
 import dev.codetrace.support.GitFixtures;
 import dev.codetrace.support.GitFixtures.Entry;
+import dev.codetrace.config.IngestionProperties;
 import dev.codetrace.ingestion.model.IndexResult;
+import dev.codetrace.ingestion.parser.JavaSymbolExtractor;
+import dev.codetrace.ingestion.parser.JavaSymbolExtractor.FileExtraction;
+import java.time.Duration;
+import java.util.function.Function;
 import dev.codetrace.ingestion.model.ReusableIndex;
 import dev.codetrace.ingestion.model.ReusableIndex.ReusableFile;
 import java.nio.file.Path;
@@ -224,6 +229,42 @@ class JavaIndexerTest {
             assertThatThrownBy(() -> indexer.index(repo, commit, hugeBase))
                     .isInstanceOfSatisfying(JobFailureException.class,
                             e -> assertThat(e.category()).isEqualTo(Category.LIMIT_EXCEEDED));
+        }
+    }
+
+    @Test
+    void aFileThatTakesTooLongToParseIsSkippedAndTheRestAreIndexed() throws Exception {
+        String commit = GitFixtures.createRepo(tmp, Map.of(
+                "p/Slow.java", Entry.file("package p; class Slow {}"),
+                "p/Fast.java", Entry.file("package p; class Fast {}")));
+        IngestionProperties base = GitFixtures.props(tmp.resolve("ws"), List.of());
+        IngestionProperties oneSecond = new IngestionProperties(base.workspaceDir(), base.localRoots(), base.allowedHosts(),
+                base.cloneDepth(), base.cloneTimeoutSeconds(), base.maxRepoBytes(), base.maxRevisions(), base.maxJavaFiles(),
+                base.maxFileBytes(), base.maxTotalBytes(), base.maxSymbols(), base.maxReferences(), base.parseDeadlineSeconds(),
+                base.maxAttempts(), base.staleRunningSeconds(), base.retryDelaySeconds(), base.incremental(),
+                base.ignoredDirs(), 1);
+        Function<String, FileExtraction> real = new JavaSymbolExtractor()::extract;
+        JavaIndexer indexer = new JavaIndexer(oneSecond, () -> source -> {
+            if (source.contains("Slow")) {
+                try {
+                    Thread.sleep(5_000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            return real.apply(source);
+        });
+
+        try (Repository repo = open(tmp)) {
+            long start = System.nanoTime();
+            IndexResult r = indexer.index(repo, commit);
+
+            assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofSeconds(4));
+            assertThat(r.files()).extracting(f -> f.path() + " " + f.status())
+                    .containsExactlyInAnyOrder("p/Slow.java FAILED", "p/Fast.java PARSED");
+            assertThat(r.diagnostics()).extracting(d -> d.path() + " " + d.diagnostic().code())
+                    .containsExactly("p/Slow.java PARSE_TIMEOUT");
+            assertThat(r.symbols()).extracting(s -> s.symbol().qualifiedName()).containsExactly("p.Fast");
         }
     }
 

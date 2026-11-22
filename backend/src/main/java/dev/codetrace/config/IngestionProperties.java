@@ -27,5 +27,7 @@ public record IngestionProperties(
         /** Copy the facts of files unchanged since the latest compatible index instead of parsing them again. */
         @DefaultValue("true") boolean incremental,
         @DefaultValue({"target", "build", "out", "node_modules", ".git", ".gradle", ".idea", "dist"})
-        List<String> ignoredDirs) {
+        List<String> ignoredDirs,
+        /** A file that takes longer than this to parse is skipped (FAILED, PARSE_TIMEOUT) and the job continues. */
+        @DefaultValue("10") int fileParseSeconds) {
 }

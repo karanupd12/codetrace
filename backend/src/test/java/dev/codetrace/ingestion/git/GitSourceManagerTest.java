@@ -38,7 +38,7 @@ class GitSourceManagerTest {
         return new IngestionProperties(p.workspaceDir(), p.localRoots(), p.allowedHosts(), p.cloneDepth(),
                 p.cloneTimeoutSeconds(), maxRepoBytes, p.maxRevisions(), p.maxJavaFiles(), p.maxFileBytes(),
                 p.maxTotalBytes(), p.maxSymbols(), p.maxReferences(), p.parseDeadlineSeconds(), p.maxAttempts(),
-                p.staleRunningSeconds(), p.retryDelaySeconds(), p.incremental(), p.ignoredDirs());
+                p.staleRunningSeconds(), p.retryDelaySeconds(), p.incremental(), p.ignoredDirs(), p.fileParseSeconds());
     }
 
     private static String fileUrl(Path dir) {

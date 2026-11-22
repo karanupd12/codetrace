@@ -21,6 +21,10 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
@@ -34,15 +38,24 @@ import org.springframework.stereotype.Component;
 
 /**
  * Reads Java sources for one pinned commit directly from Git objects (no checkout) and extracts symbols.
- * Enforces file-count, per-file, total-byte, symbol-count and wall-clock limits. Files whose blob is in the given
+ * Enforces file-count, per-file, total-byte, symbol-count and wall-clock limits; a single file that takes longer than
+ * {@code fileParseSeconds} to parse is recorded as FAILED with a PARSE_TIMEOUT diagnostic and the job continues. Files whose blob is in the given
  * reusable index are not read or parsed; their facts are copied later and count towards the same limits.
  */
 @Component
 public class JavaIndexer {
     private final IngestionProperties props;
+    private final Supplier<Function<String, FileExtraction>> parsers;
 
+    @Autowired
     public JavaIndexer(IngestionProperties props) {
+        this(props, () -> new JavaSymbolExtractor()::extract);
+    }
+
+    /** With a custom parser factory; each parser is used by one thread at a time. */
+    JavaIndexer(IngestionProperties props, Supplier<Function<String, FileExtraction>> parsers) {
         this.props = props;
+        this.parsers = parsers;
     }
 
     public IndexResult index(Repository repo, String commitHash) {
@@ -51,7 +64,7 @@ public class JavaIndexer {
 
     public IndexResult index(Repository repo, String commitHash, ReusableIndex reusable) {
         long deadline = System.nanoTime() + Duration.ofSeconds(props.parseDeadlineSeconds()).toNanos();
-        JavaSymbolExtractor extractor = new JavaSymbolExtractor();
+        long fileBudget = Duration.ofSeconds(props.fileParseSeconds()).toNanos();
         Set<String> ignored = new HashSet<>(props.ignoredDirs());
 
         List<FileRecord> files = new ArrayList<>();
@@ -68,7 +81,8 @@ public class JavaIndexer {
         int javaFiles = 0;
         long totalBytes = 0;
 
-        try (ObjectReader reader = repo.newObjectReader(); RevWalk rw = new RevWalk(reader)) {
+        try (ObjectReader reader = repo.newObjectReader(); RevWalk rw = new RevWalk(reader);
+             BoundedParser parser = new BoundedParser(parsers)) {
             ObjectId id = ObjectId.fromString(commitHash);
             if (!reader.has(id)) {
                 throw new JobFailureException(Category.REVISION_NOT_FOUND, "Revision not found in repository.");
@@ -132,7 +146,16 @@ public class JavaIndexer {
                     }
                     ObjectLoader loader = reader.open(blob, Constants.OBJ_BLOB);
                     String source = new String(loader.getBytes((int) props.maxFileBytes()), StandardCharsets.UTF_8);
-                    FileExtraction x = extractor.extract(source);
+                    FileExtraction x;
+                    long remaining = deadline - System.nanoTime();
+                    try {
+                        x = parser.parse(source, Math.min(remaining, fileBudget));
+                    } catch (TimeoutException e) {
+                        if (remaining <= fileBudget) {
+                            throw new JobFailureException(Category.TIMEOUT, "Indexing exceeded the time limit.");
+                        }
+                        x = BoundedParser.timedOut(props.fileParseSeconds());
+                    }
                     files.add(new FileRecord(path, x.packageName(), x.status().name(), "", size, blobId));
                     for (var s : x.symbols()) symbols.add(new SymbolRecord(path, s));
                     for (var i : x.imports()) imports.add(new ImportRecord(path, i));
