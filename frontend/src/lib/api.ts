@@ -352,3 +352,71 @@ export const searchSymbols = (
 
 export const listDiagnostics = (jobId: string, limit: number, signal?: AbortSignal) =>
   request<Page<Diagnostic>>(`/api/v1/index-jobs/${jobId}/diagnostics?limit=${limit}`, undefined, signal);
+
+// ---- snapshot comparison ----
+
+export type ChangeCount = { change: "ADDED" | "REMOVED" | "CHANGED"; kind: string; count: number };
+
+export type SnapshotComparison = { base: Snapshot; head: Snapshot; nodes: ChangeCount[]; edges: ChangeCount[] };
+
+export type NodeChange = {
+  change: "ADDED" | "REMOVED" | "CHANGED";
+  nodeType: string;
+  qualifiedName: string;
+  signature: string;
+  path: string;
+  baseNodeId: string | null;
+  headNodeId: string | null;
+  baseSubtype: string | null;
+  headSubtype: string | null;
+  baseModifiers: string | null;
+  headModifiers: string | null;
+};
+
+export type EdgeChange = {
+  change: "ADDED" | "REMOVED";
+  edgeType: string;
+  resolutionState: string;
+  confidence: number;
+  srcType: string;
+  srcName: string;
+  srcSignature: string;
+  dstType: string;
+  dstName: string;
+  dstSignature: string;
+  evidencePath: string;
+  evidenceLine: number;
+};
+
+const comparePath = (base: string, head: string) => `/api/v1/snapshots/${base}/compare/${head}`;
+
+export const compareSnapshots = (base: string, head: string, signal?: AbortSignal) =>
+  request<SnapshotComparison>(comparePath(base, head), undefined, signal);
+
+export const listNodeChanges = (
+  base: string,
+  head: string,
+  opts: { change?: string; type?: string; limit?: number; offset?: number },
+  signal?: AbortSignal,
+) => {
+  const q = new URLSearchParams();
+  if (opts.change) q.set("change", opts.change);
+  if (opts.type) q.set("type", opts.type);
+  q.set("limit", String(opts.limit ?? 50));
+  q.set("offset", String(opts.offset ?? 0));
+  return request<Page<NodeChange>>(`${comparePath(base, head)}/nodes?${q}`, undefined, signal);
+};
+
+export const listEdgeChanges = (
+  base: string,
+  head: string,
+  opts: { change?: string; types?: string; limit?: number; offset?: number },
+  signal?: AbortSignal,
+) => {
+  const q = new URLSearchParams();
+  if (opts.change) q.set("change", opts.change);
+  if (opts.types) q.set("types", opts.types);
+  q.set("limit", String(opts.limit ?? 50));
+  q.set("offset", String(opts.offset ?? 0));
+  return request<Page<EdgeChange>>(`${comparePath(base, head)}/edges?${q}`, undefined, signal);
+};

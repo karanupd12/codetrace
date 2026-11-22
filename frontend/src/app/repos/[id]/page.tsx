@@ -20,6 +20,7 @@ import {
 } from "@/lib/api";
 import { usePoll } from "@/lib/usePoll";
 import styles from "../../page.module.css";
+import ComparePanel from "./ComparePanel";
 import GraphExplorer from "./GraphExplorer";
 import ImpactPanel from "./ImpactPanel";
 import SymbolBrowser from "./SymbolBrowser";
@@ -198,6 +199,8 @@ export default function RepoPage() {
           onRequested={reload}
         />
       )}
+
+      {published.length > 0 && <ComparePanel snapshots={published} revisions={revisions} />}
 
       {explored && <GraphExplorer key={explored.id} snapshot={explored} />}
 
