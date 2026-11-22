@@ -88,4 +88,19 @@ public class JobService {
     public Optional<IndexedRevision> findSucceededIndex(UUID repositoryId, String commitHash) {
         return jobs.findSucceededIndex(repositoryId, commitHash);
     }
+
+    /** Removes finished IMPACT jobs whose report is gone; returns how many. */
+    public int pruneOrphanImpactJobs(int limit) {
+        return jobs.deleteOrphanImpactJobs(limit);
+    }
+
+    /** Removes indexes of an older extractor that no graph uses, finished more than {@code days} ago; returns how many. */
+    public int pruneStaleIndexes(int days, int limit) {
+        return jobs.deleteStaleIndexes(IndexedRevision.CURRENT_EXTRACTION_VERSION, days, limit);
+    }
+
+    /** Removes failed SYNC, INDEX and GRAPH_BUILD jobs older than {@code days}; returns how many. */
+    public int pruneFailed(int days, int limit) {
+        return jobs.deleteFailedOlderThan(days, limit);
+    }
 }

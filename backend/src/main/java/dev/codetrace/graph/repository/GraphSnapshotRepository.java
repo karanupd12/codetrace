@@ -125,4 +125,29 @@ public class GraphSnapshotRepository {
                 rs.getObject("unresolved_edge_count", Integer.class), rs.getString("failure_reason"),
                 rs.getObject("created_at", OffsetDateTime.class), rs.getObject("published_at", OffsetDateTime.class));
     }
+
+    /**
+     * Deletes snapshots built by another builder version once a published snapshot of the current version exists for
+     * the same commit, unless an impact report still refers to them. Their nodes and edges go with them.
+     */
+    public int deleteSuperseded(String currentBuilder, int limit) {
+        return jdbc.sql("""
+                delete from graph_snapshot where id in (
+                  select s.id from graph_snapshot s
+                   where s.builder_version <> :cur
+                     and exists (select 1 from graph_snapshot n where n.repository_id = s.repository_id
+                                   and n.commit_hash = s.commit_hash and n.builder_version = :cur and n.status = 'PUBLISHED')
+                     and not exists (select 1 from impact_report r where r.base_snapshot_id = s.id or r.head_snapshot_id = s.id)
+                   limit :lim)""")
+                .param("cur", currentBuilder).param("lim", limit).update();
+    }
+
+    /** Deletes FAILED snapshots older than {@code days}. */
+    public int deleteFailedOlderThan(int days, int limit) {
+        return jdbc.sql("""
+                delete from graph_snapshot where id in (
+                  select id from graph_snapshot
+                   where status = 'FAILED' and created_at < now() - make_interval(days => :d) limit :lim)""")
+                .param("d", days).param("lim", limit).update();
+    }
 }

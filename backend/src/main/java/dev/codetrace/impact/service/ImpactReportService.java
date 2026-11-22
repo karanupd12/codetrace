@@ -128,4 +128,14 @@ public class ImpactReportService {
         return snapshots.latestPublished(repo.id(), commit).orElseThrow(() -> ApiException.conflict(
                 "Build the dependency graph for revision " + Commits.shortHash(commit) + " (" + side + ") first."));
     }
+
+    /** Removes reports superseded by a current-algorithm report of the same change; returns how many. */
+    public int pruneSuperseded(int limit) {
+        return reports.deleteSuperseded(ImpactAnalyzer.ALGORITHM_VERSION, limit);
+    }
+
+    /** Removes failed reports older than {@code days}; returns how many. */
+    public int pruneFailed(int days, int limit) {
+        return reports.deleteFailedOlderThan(days, limit);
+    }
 }

@@ -73,6 +73,16 @@ public class GraphSnapshotService {
         return snapshots.latestPublished(repositoryId, commitHash);
     }
 
+    /** Removes snapshots superseded by a current-builder snapshot of the same commit; returns how many. */
+    public int pruneSuperseded(int limit) {
+        return snapshots.deleteSuperseded(GraphBuilder.VERSION, limit);
+    }
+
+    /** Removes failed snapshots older than {@code days}; returns how many. */
+    public int pruneFailed(int days, int limit) {
+        return snapshots.deleteFailedOlderThan(days, limit);
+    }
+
     public List<Snapshot> list(UUID repositoryId) {
         repositories.get(repositoryId);
         return snapshots.listForRepository(repositoryId, 50);

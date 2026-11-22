@@ -91,4 +91,29 @@ public class ImpactReportRepository {
                 rs.getString("failure_reason"), rs.getObject("created_at", OffsetDateTime.class),
                 rs.getObject("completed_at", OffsetDateTime.class));
     }
+
+    /**
+     * Deletes reports of another algorithm version once a completed report of the current version exists for the same
+     * commits and depth. Their findings go with them; the jobs that computed them are removed by the jobs feature.
+     */
+    public int deleteSuperseded(String currentAlgorithm, int limit) {
+        return jdbc.sql("""
+                delete from impact_report where id in (
+                  select r.id from impact_report r
+                   where r.algorithm_version <> :cur
+                     and exists (select 1 from impact_report n where n.repository_id = r.repository_id
+                                   and n.base_commit = r.base_commit and n.head_commit = r.head_commit
+                                   and n.depth = r.depth and n.algorithm_version = :cur and n.status = 'COMPLETED')
+                   limit :lim)""")
+                .param("cur", currentAlgorithm).param("lim", limit).update();
+    }
+
+    /** Deletes FAILED reports older than {@code days}. */
+    public int deleteFailedOlderThan(int days, int limit) {
+        return jdbc.sql("""
+                delete from impact_report where id in (
+                  select id from impact_report
+                   where status = 'FAILED' and created_at < now() - make_interval(days => :d) limit :lim)""")
+                .param("d", days).param("lim", limit).update();
+    }
 }

@@ -163,4 +163,42 @@ public class JobRepository {
                 rs.getString("parser_version"), rs.getObject("files_reused", Integer.class),
                 rs.getObject("base_job_id", UUID.class));
     }
+
+    /** Deletes finished IMPACT jobs whose report no longer exists. */
+    public int deleteOrphanImpactJobs(int limit) {
+        return jdbc.sql("""
+                delete from index_job where id in (
+                  select j.id from index_job j
+                   where j.operation = 'IMPACT' and j.status in ('SUCCEEDED', 'FAILED', 'DEAD_LETTERED')
+                     and not exists (select 1 from impact_report r where r.job_id = j.id)
+                   limit :lim)""")
+                .param("lim", limit).update();
+    }
+
+    /**
+     * Deletes indexes written by an older extractor, finished more than {@code days} ago and used by no graph
+     * snapshot. Their stored facts go with them.
+     */
+    public int deleteStaleIndexes(int currentExtractionVersion, int days, int limit) {
+        return jdbc.sql("""
+                delete from index_job where id in (
+                  select j.id from index_job j
+                   where j.operation = 'INDEX' and j.status = 'SUCCEEDED' and j.extraction_version < :ev
+                     and j.finished_at < now() - make_interval(days => :d)
+                     and not exists (select 1 from graph_snapshot s where s.source_job_id = j.id)
+                   limit :lim)""")
+                .param("ev", currentExtractionVersion).param("d", days).param("lim", limit).update();
+    }
+
+    /** Deletes failed or dead-lettered SYNC, INDEX and GRAPH_BUILD jobs last touched more than {@code days} ago. */
+    public int deleteFailedOlderThan(int days, int limit) {
+        return jdbc.sql("""
+                delete from index_job where id in (
+                  select j.id from index_job j
+                   where j.operation in ('SYNC', 'INDEX', 'GRAPH_BUILD') and j.status in ('FAILED', 'DEAD_LETTERED')
+                     and j.updated_at < now() - make_interval(days => :d)
+                     and not exists (select 1 from graph_snapshot s where s.source_job_id = j.id)
+                   limit :lim)""")
+                .param("d", days).param("lim", limit).update();
+    }
 }
