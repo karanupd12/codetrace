@@ -58,6 +58,23 @@ public class JavaIndexer {
         this.parsers = parsers;
     }
 
+    /** The blob ids of the Java files of a commit, read from its tree without loading any content. */
+    public List<String> javaBlobIds(Repository repo, String commitHash) {
+        List<String> out = new ArrayList<>();
+        try (RevWalk rw = new RevWalk(repo); TreeWalk tw = new TreeWalk(repo)) {
+            ObjectId id = ObjectId.fromString(commitHash);
+            if (!repo.getObjectDatabase().has(id)) return out;
+            tw.addTree(rw.parseCommit(id).getTree());
+            tw.setRecursive(true);
+            while (tw.next()) {
+                if (tw.getPathString().endsWith(".java")) out.add(tw.getObjectId(0).name());
+            }
+        } catch (IOException e) {
+            throw new JobFailureException(Category.GIT_ERROR, "Could not read revision contents.", e);
+        }
+        return out;
+    }
+
     public IndexResult index(Repository repo, String commitHash) {
         return index(repo, commitHash, ReusableIndex.NONE);
     }

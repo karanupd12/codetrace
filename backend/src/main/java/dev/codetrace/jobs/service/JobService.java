@@ -79,10 +79,10 @@ public class JobService {
                 baseJobId);
     }
 
-    /** The latest finished index of another commit of the repository, written by the given extractor. */
-    public Optional<IndexedRevision> findLatestSucceededIndex(UUID repositoryId, String otherThanCommit,
-                                                             String parserVersion, int extractionVersion) {
-        return jobs.findLatestSucceededIndex(repositoryId, otherThanCommit, parserVersion, extractionVersion);
+    /** The most recently finished indexes of other commits of the repository written by the given extractor. */
+    public List<IndexedRevision> findRecentSucceededIndexes(UUID repositoryId, String otherThanCommit,
+                                                            String parserVersion, int extractionVersion, int limit) {
+        return jobs.findRecentSucceededIndexes(repositoryId, otherThanCommit, parserVersion, extractionVersion, limit);
     }
 
     public Optional<IndexedRevision> findSucceededIndex(UUID repositoryId, String commitHash) {

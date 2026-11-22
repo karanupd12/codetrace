@@ -61,6 +61,8 @@ class IncrementalIndexingIT {
     static Path repoDir;
     static String first;
     static String second;
+    static Path libDir;
+    static final List<String> libCommits = new java.util.ArrayList<>();
 
     static synchronized void createRepo() throws Exception {
         if (root != null) return;
@@ -79,6 +81,22 @@ class IncrementalIndexingIT {
                     "src/q/C.java", Entry.file("package p; public class C extends A { void more() { run(); } }"),
                     "src/p/Broken.java", Entry.file("package p; public class Broken {"),
                     "src/p/D.java", Entry.file("package p; public class D { void d(B b) { b.stop(); } }")), first, "second");
+        }
+        createLibRepo();
+    }
+
+    /** A base commit, an unrelated rewrite, then a small change to the base: the best base is the oldest one. */
+    static void createLibRepo() throws Exception {
+        libDir = Files.createDirectories(root.resolve("lib"));
+        Map<String, Entry> baseFiles = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < 6; i++) baseFiles.put("src/l/K" + i + ".java", Entry.file("package l; class K" + i + " {}"));
+        libCommits.add(GitFixtures.createRepo(libDir, baseFiles));
+        try (Repository repo = new FileRepositoryBuilder().setGitDir(libDir.resolve(".git").toFile()).setMustExist(true).build()) {
+            libCommits.add(GitFixtures.commit(repo, Map.of("src/z/Other.java", Entry.file("package z; class Other {}")),
+                    libCommits.get(0), "unrelated"));
+            Map<String, Entry> changed = new java.util.LinkedHashMap<>(baseFiles);
+            changed.put("src/l/K0.java", Entry.file("package l; class K0 { void more() {} }"));
+            libCommits.add(GitFixtures.commit(repo, changed, libCommits.get(1), "small change"));
         }
     }
 
@@ -145,6 +163,21 @@ class IncrementalIndexingIT {
 
     private static List<String> sorted(List<?> items) {
         return items.stream().map(Object::toString).sorted(Comparator.naturalOrder()).toList();
+    }
+
+    @Test
+    void theEarlierIndexSharingTheMostFilesIsTheBaseNotTheMostRecentOne() throws Exception {
+        JsonNode registered = post("/api/v1/repositories", Map.of("sourceType", "LOCAL", "location", libDir.toString()));
+        awaitSucceeded(registered.at("/syncJob/id").asText());
+        UUID repoId = UUID.fromString(registered.at("/repository/id").asText());
+
+        JsonNode base = index(repoId, libCommits.get(0));
+        JsonNode unrelated = index(repoId, libCommits.get(1)); // finished last, shares no file with the next commit
+        JsonNode next = index(repoId, libCommits.get(2));
+
+        assertThat(unrelated.get("filesReused").asInt()).isZero();
+        assertThat(next.get("baseJobId").asText()).isEqualTo(base.get("id").asText());
+        assertThat(next.get("filesReused").asInt()).isEqualTo(5);
     }
 
     @Test

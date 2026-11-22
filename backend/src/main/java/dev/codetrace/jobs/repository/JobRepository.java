@@ -114,18 +114,18 @@ public class JobRepository {
     }
 
     /** The most recently finished index of another commit of this repository written by the given extractor. */
-    public Optional<IndexedRevision> findLatestSucceededIndex(UUID repositoryId, String otherThanCommit, String parserVersion,
-                                                             int extractionVersion) {
+    public List<IndexedRevision> findRecentSucceededIndexes(UUID repositoryId, String otherThanCommit, String parserVersion,
+                                                            int extractionVersion, int limit) {
         return jdbc.sql("""
                 select id, parser_version, extraction_version from index_job
                 where repository_id = :r and operation = 'INDEX' and status = 'SUCCEEDED' and commit_hash <> :c
                   and parser_version = :pv and extraction_version = :ev
-                order by finished_at desc limit 1""")
+                order by finished_at desc limit :lim""")
                 .param("r", repositoryId).param("c", otherThanCommit).param("pv", parserVersion)
-                .param("ev", extractionVersion)
+                .param("ev", extractionVersion).param("lim", limit)
                 .query((rs, i) -> new IndexedRevision(rs.getObject("id", UUID.class), rs.getString("parser_version"),
                         rs.getObject("extraction_version", Integer.class)))
-                .optional();
+                .list();
     }
 
     /** Back to QUEUED for a delayed retry; the sweeper republishes it after the retry delay. */

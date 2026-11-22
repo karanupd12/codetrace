@@ -53,7 +53,7 @@ public class IndexJobHandler implements JobHandler {
         SourceRepository repo = repositories.find(job.repositoryId()).orElseThrow(
                 () -> new JobFailureException(Category.INVALID_SOURCE, "Repository no longer exists."));
         try (Repository r = git.open(repo, List.of(job.commitHash()))) {
-            ReusableIndex reusable = props.incremental() ? results.reusableFor(repo.id(), job.commitHash())
+            ReusableIndex reusable = props.incremental() ? results.reusableFor(repo.id(), job.commitHash(), indexer.javaBlobIds(r, job.commitHash()))
                     : ReusableIndex.NONE;
             IndexResult result = indexer.index(r, job.commitHash(), reusable);
             results.store(job.id(), repo.id(), job.commitHash(), result); // also marks the job SUCCEEDED

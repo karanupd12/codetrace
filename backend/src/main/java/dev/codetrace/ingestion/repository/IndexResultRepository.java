@@ -8,6 +8,7 @@ import dev.codetrace.ingestion.parser.JavaSymbolExtractor;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -122,6 +123,23 @@ public class IndexResultRepository {
                     rs.getString("package_name"), rs.getString("status"), rs.getInt("symbols"), rs.getInt("refs")));
         }, baseJobId, baseJobId, baseJobId);
         return new ReusableIndex(baseJobId, byBlob);
+    }
+
+    /** For each of {@code jobIds}, how many of its parsed files hold one of {@code blobIds}. */
+    public Map<UUID, Integer> sharedBlobCounts(List<UUID> jobIds, Collection<String> blobIds) {
+        Map<UUID, Integer> out = new HashMap<>();
+        jdbc.query("""
+                select job_id, count(*) as n from indexed_file
+                 where job_id = any(?) and blob_id = any(?) and status in ('PARSED', 'PARTIAL', 'FAILED')
+                 group by job_id""",
+                ps -> {
+                    ps.setArray(1, ps.getConnection().createArrayOf("uuid", jobIds.toArray()));
+                    ps.setArray(2, ps.getConnection().createArrayOf("text", blobIds.toArray()));
+                },
+                rs -> {
+                    out.put(rs.getObject("job_id", UUID.class), rs.getInt("n"));
+                });
+        return out;
     }
 
     /** Copies the facts of reused files from the base index, under each file's path in this commit. */
