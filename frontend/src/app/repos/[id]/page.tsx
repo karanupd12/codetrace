@@ -1,227 +1,236 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
 import { useState } from "react";
+import type { ImpactReport, Revision } from "@/lib/api";
+import { useRepo } from "@/lib/repo";
+import { plural } from "@/lib/words";
+import Icon from "@/components/Icon";
+import LiveTimeline from "@/components/LiveTimeline";
+import { prepareTasks, VersionBadge } from "@/components/VersionState";
 import {
-  getRepository,
-  isActive,
-  listImpactReports,
-  listJobs,
-  listRevisions,
-  listSnapshots,
-  requestGraphBuild,
-  reportInProgress,
-  requestIndex,
-  resync,
-  snapshotInProgress,
-  type Job,
-  type Snapshot,
-} from "@/lib/api";
-import { usePoll } from "@/lib/usePoll";
-import styles from "../../page.module.css";
-import ComparePanel from "./ComparePanel";
-import GraphExplorer from "./GraphExplorer";
-import ImpactPanel from "./ImpactPanel";
-import SymbolBrowser from "./SymbolBrowser";
+  Badge,
+  Banner,
+  Button,
+  ButtonLink,
+  Card,
+  EmptyState,
+  Help,
+  RelativeTime,
+  RiskBadge,
+  Sha,
+  ShowMore,
+} from "@/components/ui";
+import s from "./overview.module.css";
 
-const short = (h: string | null) => (h ? h.slice(0, 7) : "—");
+const PAGE = 25;
 
-function jobSummary(j: Job) {
-  if (j.status === "SUCCEEDED" && j.operation === "INDEX") {
-    const reused = j.filesReused ? ` (${j.filesReused} unchanged, reused)` : "";
-    return `${j.filesParsed} files parsed${reused} · ${j.filesSkipped} skipped · ${j.symbolsExtracted} symbols`;
-  }
-  if (j.errorCategory) return `${j.errorCategory}: ${j.errorMessage ?? ""}`;
-  return `attempt ${j.attempts}`;
+function VersionRow({ rev, base }: { rev: Revision; base: string }) {
+  const { versionOf, prepare } = useRepo();
+  const v = versionOf(rev.commitHash);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const run = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await prepare(rev.commitHash);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not start");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <li className={s.versionRow}>
+      <div className={s.versionMain}>
+        <span className={s.versionMessage}>{rev.summary || "(no message)"}</span>
+        <span className={s.versionMeta}>
+          <Sha value={rev.commitHash} />
+          {rev.authorTime && (
+            <>
+              <span aria-hidden>·</span>
+              <RelativeTime iso={rev.authorTime} />
+            </>
+          )}
+          {v.state === "failed" && <span className={s.failReason}>{v.reason}</span>}
+          {error && <span className={s.failReason}>{error}</span>}
+        </span>
+      </div>
+      <div className={s.versionActions}>
+        <VersionBadge v={v} />
+        {v.state === "ready" && (
+          <ButtonLink size="sm" href={`${base}/explore?map=${v.snapshot.id}`} icon="map">
+            Open map
+          </ButtonLink>
+        )}
+        {v.state === "none" && (
+          <Button size="sm" loading={busy} onClick={run}>
+            Prepare
+          </Button>
+        )}
+        {v.state === "failed" && (
+          <Button size="sm" icon="refresh" loading={busy} onClick={run}>
+            Try again
+          </Button>
+        )}
+      </div>
+      {v.state === "preparing" && (
+        <div className={s.rowTimeline}>
+          <LiveTimeline compact tasks={prepareTasks(v)} />
+        </div>
+      )}
+    </li>
+  );
 }
 
-export default function RepoPage() {
-  const { id } = useParams<{ id: string }>();
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [selectedJob, setSelectedJob] = useState<string | null>(null);
-  const [openSnapshot, setOpenSnapshot] = useState<string | null>(null);
-
-  const { data, error, reload } = usePoll(
-    async (signal) => {
-      const [repo, jobs, snapshots, reports] = await Promise.all([
-        getRepository(id, signal),
-        listJobs(id, signal),
-        listSnapshots(id, signal),
-        listImpactReports(id, signal),
-      ]);
-      const revisions = repo.syncStatus === "SYNCED" ? await listRevisions(id, signal) : [];
-      return { repo, jobs, snapshots, reports, revisions };
-    },
-    2000,
-    (d) =>
-      d.repo.syncStatus === "PENDING" ||
-      d.jobs.some((j) => isActive(j.status)) ||
-      d.snapshots.some((s) => snapshotInProgress(s.status)) ||
-      d.reports.some((r) => reportInProgress(r.status)),
-  );
-
-  async function act(fn: () => Promise<unknown>) {
-    setActionError(null);
+function LatestVersion({ rev, base }: { rev: Revision; base: string }) {
+  const { versionOf, prepare } = useRepo();
+  const v = versionOf(rev.commitHash);
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    setBusy(true);
     try {
-      await fn();
-      reload();
-    } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Action failed");
+      await prepare(rev.commitHash);
+    } finally {
+      setBusy(false);
     }
-  }
-
-  if (error && !data) {
-    return (
-      <main className={styles.main}>
-        <Link href="/">← Repositories</Link>
-        <p role="alert" className={styles.error}>{error}</p>
-      </main>
-    );
-  }
-  if (!data) {
-    return (
-      <main className={styles.main}>
-        <p>Loading…</p>
-      </main>
-    );
-  }
-
-  const { repo, jobs, snapshots, reports, revisions } = data;
-  const indexJobs = jobs.filter((j) => j.operation === "INDEX");
-  const latestDone = indexJobs.find((j) => j.status === "SUCCEEDED");
-  const activeJobId = selectedJob ?? latestDone?.id ?? null;
-  const indexedCommits = new Map(indexJobs.map((j) => [j.commitHash, j]));
-  const snapshotByCommit = new Map<string, Snapshot>();
-  for (const s of [...snapshots].reverse()) snapshotByCommit.set(s.commitHash, s); // newest wins
-  const published = snapshots.filter((s) => s.status === "PUBLISHED");
-  const explored = published.find((s) => s.id === openSnapshot) ?? null;
-
-  function graphAction(commit: string) {
-    const index = indexedCommits.get(commit);
-    if (!index || index.status !== "SUCCEEDED") return null;
-    const snap = snapshotByCommit.get(commit);
-    if (!snap) return <button onClick={() => act(() => requestGraphBuild(id, commit))}>Build graph</button>;
-    if (snap.status === "PUBLISHED") return <button onClick={() => setOpenSnapshot(snap.id)}>Open graph</button>;
-    if (snapshotInProgress(snap.status)) return <span className={styles.muted}>graph {snap.status.toLowerCase()}…</span>;
-    return (
-      <button onClick={() => act(() => requestGraphBuild(id, commit))} title={snap.failureReason ?? ""}>
-        Retry graph
-      </button>
-    );
-  }
+  };
 
   return (
-    <main className={`${styles.main} ${styles.wide}`}>
-      <Link href="/">← Repositories</Link>
-      <header className={styles.header}>
-        <h1>{repo.displayName}</h1>
-        <p>
-          <span className={`${styles.badge} ${styles["badge" + repo.syncStatus]}`}>{repo.syncStatus}</span>{" "}
-          {repo.sourceType === "GIT_URL" ? repo.originUrl : "Local repository"}
-          {repo.headCommit ? ` · ${repo.defaultBranch ?? "HEAD"} @ ${short(repo.headCommit)}` : ""}
-        </p>
-        <p>
-          <button onClick={() => act(() => resync(id))}>Re-sync</button>
-        </p>
-      </header>
-
-      {actionError && <p role="alert" className={styles.error}>{actionError}</p>}
-
-      <section className={styles.card}>
-        <h2>Revisions</h2>
-        {repo.syncStatus === "PENDING" && <p className={styles.muted}>Syncing… revisions appear when the clone finishes.</p>}
-        {repo.syncStatus === "FAILED" && (
-          <p role="alert" className={styles.error}>
-            Sync failed: {jobs.find((j) => j.operation === "SYNC")?.errorMessage ?? "unknown error"}
+    <Card
+      title="Latest version"
+      subtitle={
+        <>
+          {rev.summary} · <Sha value={rev.commitHash} />
+        </>
+      }
+      actions={<VersionBadge v={v} />}
+    >
+      {v.state === "ready" && (
+        <div className={s.readyRow}>
+          <p>
+            This version is ready: its code has been scanned and its dependency map has{" "}
+            {plural(v.snapshot.nodeCount ?? 0, "item")} and {plural(v.snapshot.edgeCount ?? 0, "link")}.
           </p>
-        )}
-        {revisions.length > 0 && (
-          <table className={styles.table}>
-            <thead>
-              <tr><th>Commit</th><th>Summary</th><th>Index</th><th>Graph</th></tr>
-            </thead>
-            <tbody>
-              {revisions.map((r) => {
-                const job = indexedCommits.get(r.commitHash);
-                return (
-                  <tr key={r.commitHash}>
-                    <td><code>{short(r.commitHash)}</code></td>
-                    <td>{r.summary}</td>
-                    <td>
-                      {job && job.status === "SUCCEEDED" ? (
-                        <button onClick={() => setSelectedJob(job.id)}>View symbols</button>
-                      ) : job && isActive(job.status) ? (
-                        <span className={styles.muted}>{job.status.toLowerCase()}…</span>
-                      ) : (
-                        <button onClick={() => act(() => requestIndex(id, r.commitHash))}>
-                          {job ? "Retry index" : "Index"}
-                        </button>
-                      )}
-                    </td>
-                    <td>{graphAction(r.commitHash)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </section>
+          <div className={s.actions}>
+            <ButtonLink href={`${base}/analyze`} variant="primary" icon="pulse">
+              Analyze a change
+            </ButtonLink>
+            <ButtonLink href={`${base}/explore?map=${v.snapshot.id}`} icon="map">
+              Explore the map
+            </ButtonLink>
+          </div>
+        </div>
+      )}
+      {v.state === "none" && (
+        <div className={s.readyRow}>
+          <p>
+            Prepare this version to explore it and to analyze changes. CODETRACE reads the code and maps what depends on what;
+            it takes a few seconds for most projects.
+            <Help>Nothing from the repository is run. Files are read from Git, parsed, and linked by name and type.</Help>
+          </p>
+          <div className={s.actions}>
+            <Button variant="primary" icon="play" loading={busy} onClick={run}>
+              Prepare this version
+            </Button>
+          </div>
+        </div>
+      )}
+      {(v.state === "preparing" || v.state === "failed") && (
+        <div className={s.progress}>
+          <LiveTimeline tasks={prepareTasks(v)} onRetry={run} />
+        </div>
+      )}
+    </Card>
+  );
+}
 
-      {snapshots.length > 0 && (
-        <section className={styles.card}>
-          <h2>Graph snapshots</h2>
-          <ul className={styles.list}>
-            {snapshots.map((s) => (
-              <li key={s.id} className={styles.row}>
-                <span className={`${styles.badge} ${styles["badge" + (s.status === "PUBLISHED" ? "SUCCEEDED" : s.status === "FAILED" ? "FAILED" : "RUNNING")]}`}>
-                  {s.status}
-                </span>
-                <span className={styles.label}>{short(s.commitHash)}</span>
-                <span className={styles.detail}>
-                  {s.status === "PUBLISHED"
-                    ? `${s.nodeCount} nodes · ${s.edgeCount} edges (${s.resolvedEdgeCount} resolved, ${s.ambiguousEdgeCount} ambiguous, ${s.unresolvedEdgeCount} unresolved)`
-                    : s.failureReason ?? s.builderVersion}
-                </span>
-                {s.status === "PUBLISHED" && <button onClick={() => setOpenSnapshot(s.id)}>Open</button>}
-              </li>
+function RecentAnalyses({ reports, base }: { reports: ImpactReport[]; base: string }) {
+  const done = reports.filter((r) => r.status === "COMPLETED").slice(0, 3);
+  if (done.length === 0) return null;
+  return (
+    <Card title="Recent analyses" actions={<Link href={`${base}/analyze`}>See all</Link>}>
+      <ul className={s.analyses}>
+        {done.map((r) => (
+          <li key={r.id}>
+            <Link href={`${base}/analyze/${r.id}`} className={s.analysis}>
+              <span className={s.analysisTitle}>
+                <Sha value={r.baseCommit} copy={false} /> <Icon name="arrowRight" size={13} /> <Sha value={r.headCommit} copy={false} />
+              </span>
+              {r.riskLevel && <RiskBadge level={r.riskLevel} />}
+              <span className={s.analysisMeta}>
+                {plural(r.affectedCount ?? 0, "place")} may be affected · {plural(r.testsAffectedCount ?? 0, "test")} to run
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+export default function Overview() {
+  const { data } = useRepo();
+  const [shown, setShown] = useState(PAGE);
+  if (!data) return null;
+  const base = `/repos/${data.repo.id}`;
+  const syncJob = data.jobs.find((j) => j.operation === "SYNC");
+
+  if (data.repo.syncStatus === "PENDING") {
+    return (
+      <Card title="Connecting to the repository" subtitle="Downloading its recent history. This usually takes a few seconds.">
+        {syncJob ? <LiveTimeline tasks={[{ job: syncJob }]} /> : <Banner>Starting…</Banner>}
+      </Card>
+    );
+  }
+  if (data.revisions.length === 0) {
+    return (
+      <Card>
+        <EmptyState icon="commit" title="No versions found">
+          The repository has no commits on its default branch yet. Use “Check for new versions” after pushing some.
+        </EmptyState>
+      </Card>
+    );
+  }
+
+  const prepared = data.revisions.filter((r) => data.snapshots.some((s2) => s2.commitHash === r.commitHash && s2.status === "PUBLISHED")).length;
+
+  return (
+    <div className={s.grid}>
+      <div className={s.mainCol}>
+        <LatestVersion rev={data.revisions[0]} base={base} />
+        <Card
+          title="Versions"
+          subtitle={`${plural(data.revisions.length, "recent commit")} on ${data.repo.defaultBranch ?? "the default branch"} · ${prepared} prepared`}
+          padded={false}
+        >
+          <ul className={s.versions}>
+            {data.revisions.slice(0, shown).map((r) => (
+              <VersionRow key={r.commitHash} rev={r} base={base} />
             ))}
           </ul>
-        </section>
-      )}
-
-      {repo.syncStatus === "SYNCED" && (
-        <ImpactPanel
-          repoId={id}
-          revisions={revisions}
-          graphed={new Set(published.map((s) => s.commitHash))}
-          reports={reports}
-          onRequested={reload}
-        />
-      )}
-
-      {published.length > 0 && <ComparePanel snapshots={published} revisions={revisions} />}
-
-      {explored && <GraphExplorer key={explored.id} snapshot={explored} />}
-
-      <section className={styles.card}>
-        <h2>Jobs</h2>
-        {jobs.length === 0 && <p className={styles.muted}>No jobs yet.</p>}
-        <ul className={styles.list}>
-          {jobs.map((j) => (
-            <li key={j.id} className={styles.row}>
-              <span className={`${styles.badge} ${styles["badge" + j.status]}`}>{j.status}</span>
-              <span className={styles.label}>
-                {j.operation}
-                {j.commitHash ? ` ${short(j.commitHash)}` : ""}
-              </span>
-              <span className={styles.detail}>{jobSummary(j)}</span>
+          <div className={s.moreWrap}>
+            <ShowMore shown={Math.min(shown, data.revisions.length)} total={data.revisions.length} noun="versions" onMore={() => setShown((n) => n + PAGE)} />
+          </div>
+        </Card>
+      </div>
+      <div className={s.sideCol}>
+        <RecentAnalyses reports={data.reports} base={base} />
+        <Card title="How it works" headingLevel={3}>
+          <ol className={s.how}>
+            <li>
+              <Badge tone="neutral">1</Badge> <strong>Prepare</strong> two versions (the code before and after a change).
             </li>
-          ))}
-        </ul>
-      </section>
-
-      {activeJobId && <SymbolBrowser jobId={activeJobId} />}
-    </main>
+            <li>
+              <Badge tone="neutral">2</Badge> <strong>Analyze the change</strong> to see what it touches and which tests to run.
+            </li>
+            <li>
+              <Badge tone="neutral">3</Badge> <strong>Explore</strong> the dependency map to see how any two parts connect.
+            </li>
+          </ol>
+        </Card>
+      </div>
+    </div>
   );
 }

@@ -1,0 +1,135 @@
+.timeline {
+  position: relative;
+}
+
+.list {
+  display: grid;
+  gap: 2px;
+  max-height: 300px;
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  list-style: none;
+  scroll-behavior: smooth;
+}
+
+.compact .list {
+  max-height: 200px;
+}
+
+.row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 4px 6px;
+  border-radius: var(--radius);
+  animation: appear 0.35s ease both;
+}
+
+/* the line that joins the steps */
+.row:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 16px;
+  top: 24px;
+  bottom: -8px;
+  width: 1px;
+  background: var(--border);
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.marker {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--canvas);
+}
+
+.text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.time {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.done .marker {
+  color: var(--green);
+}
+
+.done .text {
+  color: var(--muted);
+}
+
+.active {
+  background: var(--subtle);
+}
+
+.active .text {
+  font-weight: 600;
+}
+
+.failed .marker {
+  color: var(--red);
+}
+
+.failed .text {
+  color: var(--red);
+  font-weight: 600;
+}
+
+.waiting .marker {
+  color: var(--yellow);
+}
+
+.upcoming .text {
+  color: var(--muted);
+}
+
+.hollow {
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--border);
+  border-radius: 50%;
+}
+
+.jump {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--canvas);
+  color: var(--fg);
+  font-size: 12px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
+.retry {
+  padding-top: 8px;
+}

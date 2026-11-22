@@ -1,19 +1,89 @@
+/* Design tokens. Solid colours only: neutrals plus green, red, orange and yellow accents. Light is the default; dark
+   applies when the user picks it, or follows the system when they pick "system". */
 :root {
-  --bg: #ffffff;
-  --fg: #14161a;
-  --card: #f6f7f9;
-  --border: #d9dce1;
-  --muted: #5d6572;
+  --canvas: #ffffff;
+  --subtle: #f6f7f8;
+  --inset: #eef0f2;
+  --border: #d5dae0;
+  --border-muted: #e4e8ec;
+  --fg: #1a1d21;
+  --muted: #5b636d;
+  --header: #111418;
+  --header-fg: #f2f4f6;
+
+  --green: #1f7a3a;
+  --green-hover: #196631;
+  --green-subtle: #e3f3e8;
+  --green-fg: #ffffff;
+  --red: #c5221f;
+  --red-subtle: #fbe7e6;
+  --orange: #b84a00;
+  --orange-subtle: #fdeee2;
+  --yellow: #8a6300;
+  --yellow-subtle: #fbf3d9;
+  --neutral-subtle: #eef0f2;
+
+  --focus: #1f7a3a;
+  --shadow: 0 1px 2px rgba(17, 20, 24, 0.06), 0 4px 16px rgba(17, 20, 24, 0.06);
+  --radius: 6px;
+  --radius-lg: 10px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0f1115;
-    --fg: #e8eaee;
-    --card: #171a20;
-    --border: #2a2f38;
-    --muted: #9aa3b0;
+  :root:not([data-theme="light"]) {
+    --canvas: #0c0f13;
+    --subtle: #13171d;
+    --inset: #181d24;
+    --border: #2a3038;
+    --border-muted: #20262d;
+    --fg: #e7ebf0;
+    --muted: #8e979f;
+    --header: #050607;
+    --header-fg: #e7ebf0;
+    --green: #3ba55c;
+    --green-hover: #46b867;
+    --green-subtle: #14281b;
+    --green-fg: #06140a;
+    --red: #ef5350;
+    --red-subtle: #2c1414;
+    --orange: #f0883e;
+    --orange-subtle: #2d1c0e;
+    --yellow: #d4a72c;
+    --yellow-subtle: #2a220b;
+    --neutral-subtle: #1c2128;
+    --focus: #3ba55c;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3);
+    color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --canvas: #0c0f13;
+  --subtle: #13171d;
+  --inset: #181d24;
+  --border: #2a3038;
+  --border-muted: #20262d;
+  --fg: #e7ebf0;
+  --muted: #8e979f;
+  --header: #050607;
+  --header-fg: #e7ebf0;
+  --green: #3ba55c;
+  --green-hover: #46b867;
+  --green-subtle: #14281b;
+  --green-fg: #06140a;
+  --red: #ef5350;
+  --red-subtle: #2c1414;
+  --orange: #f0883e;
+  --orange-subtle: #2d1c0e;
+  --yellow: #d4a72c;
+  --yellow-subtle: #2a220b;
+  --neutral-subtle: #1c2128;
+  --focus: #3ba55c;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3);
+  color-scheme: dark;
 }
 
 * {
@@ -23,7 +93,94 @@
 html,
 body {
   margin: 0;
-  background: var(--bg);
+  padding: 0;
+}
+
+body {
+  background: var(--canvas);
   color: var(--fg);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  line-height: 1.25;
+  font-weight: 600;
+}
+
+h1 {
+  font-size: 24px;
+}
+
+h2 {
+  font-size: 18px;
+}
+
+h3 {
+  font-size: 15px;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--fg);
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+  text-underline-offset: 2px;
+}
+
+a:hover {
+  color: var(--green);
+  text-decoration-color: currentColor;
+}
+
+code,
+kbd,
+pre {
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+::selection {
+  background: var(--green-subtle);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

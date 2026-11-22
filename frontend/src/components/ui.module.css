@@ -1,0 +1,525 @@
+/* ---- buttons ---- */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--subtle);
+  color: var(--fg);
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--inset);
+  border-color: var(--muted);
+  color: var(--fg);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.primary {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--green-fg);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--green-hover);
+  border-color: var(--green-hover);
+  color: var(--green-fg);
+}
+
+.danger {
+  color: var(--red);
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--red-subtle);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.invisible {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.invisible:hover:not(:disabled) {
+  background: var(--inset);
+  border-color: transparent;
+  color: var(--fg);
+}
+
+.sm {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.lg {
+  height: 40px;
+  padding: 0 20px;
+  font-size: 15px;
+}
+
+/* ---- badges ---- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.badge-neutral {
+  background: var(--neutral-subtle);
+  color: var(--muted);
+  border-color: var(--border-muted);
+}
+
+.badge-green {
+  background: var(--green-subtle);
+  color: var(--green);
+}
+
+.badge-red {
+  background: var(--red-subtle);
+  color: var(--red);
+}
+
+.badge-orange {
+  background: var(--orange-subtle);
+  color: var(--orange);
+}
+
+.badge-yellow {
+  background: var(--yellow-subtle);
+  color: var(--yellow);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* ---- cards ---- */
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--canvas);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-muted);
+  background: var(--subtle);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.cardTitle {
+  display: grid;
+  gap: 2px;
+}
+
+.cardTitle h2,
+.cardTitle h3 {
+  font-size: 15px;
+}
+
+.cardSubtitle {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.cardBody {
+  padding: 18px;
+}
+
+/* ---- banners ---- */
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--subtle);
+}
+
+.banner p {
+  margin-top: 2px;
+}
+
+.banner-red {
+  border-color: var(--red);
+  background: var(--red-subtle);
+}
+
+.banner-red > svg {
+  color: var(--red);
+}
+
+.banner-yellow {
+  border-color: var(--yellow);
+  background: var(--yellow-subtle);
+}
+
+.banner-yellow > svg {
+  color: var(--yellow);
+}
+
+.banner-green {
+  border-color: var(--green);
+  background: var(--green-subtle);
+}
+
+.banner-green > svg {
+  color: var(--green);
+}
+
+.bannerBody {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---- spinner and skeleton ---- */
+.spinner {
+  display: inline-block;
+  border: 2px solid var(--border);
+  border-top-color: var(--green);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex: none;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.skeleton {
+  height: 12px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--inset) 25%, var(--subtle) 50%, var(--inset) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.skeletonStack {
+  display: grid;
+  gap: 10px;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ---- empty state ---- */
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 36px 20px;
+  text-align: center;
+}
+
+.emptyIcon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--inset);
+  color: var(--muted);
+}
+
+.empty p {
+  max-width: 460px;
+  color: var(--muted);
+}
+
+.emptyAction {
+  margin-top: 8px;
+}
+
+/* ---- help tooltip ---- */
+.help {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
+.helpButton {
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: help;
+}
+
+.helpTip {
+  position: absolute;
+  z-index: 30;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  width: max-content;
+  max-width: 280px;
+  transform: translateX(-50%);
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--header);
+  color: var(--header-fg);
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.45;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.help:hover .helpTip,
+.help:focus-within .helpTip {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* ---- details (progressive disclosure) ---- */
+.details {
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius);
+}
+
+.details > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.details > summary svg {
+  transition: transform 0.15s ease;
+}
+
+.details[open] > summary svg {
+  transform: rotate(90deg);
+}
+
+.detailsBody {
+  padding: 4px 12px 12px;
+}
+
+/* ---- segmented control ---- */
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--subtle);
+  gap: 2px;
+}
+
+.segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.segment[aria-pressed="true"] {
+  background: var(--canvas);
+  color: var(--fg);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+/* ---- form controls ---- */
+.field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fieldLabel {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.fieldHint {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.control {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--canvas);
+  color: var(--fg);
+}
+
+.control:focus {
+  border-color: var(--green);
+  outline: 2px solid var(--green-subtle);
+  outline-offset: 0;
+}
+
+/* ---- sha ---- */
+.sha {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.shaCopy {
+  display: inline-grid;
+  place-items: center;
+  padding: 2px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.shaCopy:hover {
+  background: var(--inset);
+  color: var(--fg);
+}
+
+/* ---- risk ---- */
+.meter {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--inset);
+  overflow: hidden;
+}
+
+.meterFill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.tone-green {
+  background: var(--green);
+}
+
+.tone-yellow {
+  background: var(--yellow);
+}
+
+.tone-orange {
+  background: var(--orange);
+}
+
+.tone-red {
+  background: var(--red);
+}
+
+/* ---- show more ---- */
+.more {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ---- tables ---- */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.table th {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-muted);
+  vertical-align: top;
+}
+
+.table tr:last-child td {
+  border-bottom: 0;
+}
+
+.table tbody tr:hover td {
+  background: var(--subtle);
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  word-break: break-word;
+}
+
+.muted {
+  color: var(--muted);
+}

@@ -86,7 +86,16 @@ export const isActive = (s: JobStatus) => s === "QUEUED" || s === "RUNNING";
 
 export type SnapshotStatus = "REQUESTED" | "BUILDING" | "VALIDATING" | "PUBLISHED" | "FAILED";
 export type Resolution = "RESOLVED" | "AMBIGUOUS" | "UNRESOLVED";
-export type EdgeType = "CONTAINS" | "CALLS" | "REFERENCES" | "EXTENDS" | "IMPLEMENTS" | "IMPORTS" | "TESTS";
+export type EdgeType =
+  | "CONTAINS"
+  | "CALLS"
+  | "REFERENCES"
+  | "EXTENDS"
+  | "IMPLEMENTS"
+  | "IMPORTS"
+  | "TESTS"
+  | "OVERRIDES"
+  | "OVERRIDDEN_BY";
 export type NodeType = "FILE" | "PACKAGE" | "TYPE" | "METHOD" | "FIELD";
 
 export type Snapshot = {
@@ -266,6 +275,7 @@ export type ImpactReport = {
   headSnapshotId: string;
   algorithmVersion: string;
   depth: number;
+  jobId: string;
   status: ReportStatus;
   riskScore: number | null;
   riskLevel: RiskLevel | null;
@@ -321,17 +331,21 @@ export const requestImpactReport = (repoId: string, baseCommit: string, headComm
     ...(depth ? { depth } : {}),
   });
 
+export const getImpactReport = (reportId: string, signal?: AbortSignal) =>
+  request<ImpactReport>(`/api/v1/impact-reports/${reportId}`, undefined, signal);
+
 export const listImpactReports = (repoId: string, signal?: AbortSignal) =>
   request<ImpactReport[]>(`/api/v1/repositories/${repoId}/impact-reports`, undefined, signal);
 
 export const listFindings = (
   reportId: string,
-  p: { type?: FindingType; module?: string; limit: number; offset: number },
+  p: { type?: FindingType; module?: string; test?: boolean; limit: number; offset: number },
   signal?: AbortSignal,
 ) => {
   const qs = new URLSearchParams({ limit: String(p.limit), offset: String(p.offset) });
   if (p.type) qs.set("type", p.type);
   if (p.module) qs.set("module", p.module);
+  if (p.test !== undefined) qs.set("test", String(p.test));
   return request<Page<Finding>>(`/api/v1/impact-reports/${reportId}/findings?${qs}`, undefined, signal);
 };
 
@@ -350,8 +364,8 @@ export const searchSymbols = (
   return request<Page<CodeSymbol>>(`/api/v1/index-jobs/${jobId}/symbols?${qs}`, undefined, signal);
 };
 
-export const listDiagnostics = (jobId: string, limit: number, signal?: AbortSignal) =>
-  request<Page<Diagnostic>>(`/api/v1/index-jobs/${jobId}/diagnostics?limit=${limit}`, undefined, signal);
+export const listDiagnostics = (jobId: string, limit: number, signal?: AbortSignal, offset = 0) =>
+  request<Page<Diagnostic>>(`/api/v1/index-jobs/${jobId}/diagnostics?limit=${limit}&offset=${offset}`, undefined, signal);
 
 // ---- snapshot comparison ----
 
@@ -433,5 +447,62 @@ export type Endpoint = {
   reason: string;
 };
 
-export const listEndpoints = (jobId: string, limit: number, signal?: AbortSignal) =>
-  request<Page<Endpoint>>(`/api/v1/index-jobs/${jobId}/endpoints?limit=${limit}`, undefined, signal);
+export const listEndpoints = (jobId: string, limit: number, signal?: AbortSignal, offset = 0) =>
+  request<Page<Endpoint>>(`/api/v1/index-jobs/${jobId}/endpoints?limit=${limit}&offset=${offset}`, undefined, signal);
+
+// ---- job progress ----
+
+export type JobEvent = {
+  jobId: string;
+  operation: Job["operation"];
+  commitHash: string | null;
+  attempt: number;
+  seq: number;
+  at: string;
+  step: string;
+  message: string;
+  detail: Record<string, unknown>;
+};
+
+export const getJob = (jobId: string, signal?: AbortSignal) => request<Job>(`/api/v1/index-jobs/${jobId}`, undefined, signal);
+
+export const listJobEvents = (jobId: string, after: number, signal?: AbortSignal) =>
+  request<JobEvent[]>(`/api/v1/index-jobs/${jobId}/events?after=${after}&limit=200`, undefined, signal);
+
+export const listActivity = (repoId: string, limit: number, signal?: AbortSignal) =>
+  request<JobEvent[]>(`/api/v1/repositories/${repoId}/activity?limit=${limit}`, undefined, signal);
+
+// ---- connections and paths ----
+
+export const listNodeEdges = (
+  snapshotId: string,
+  nodeId: string,
+  p: { direction: "IN" | "OUT" | "BOTH"; types?: string; limit: number; offset: number },
+  signal?: AbortSignal,
+) => {
+  const qs = new URLSearchParams({ direction: p.direction, limit: String(p.limit), offset: String(p.offset) });
+  if (p.types) qs.set("types", p.types);
+  return request<Page<GraphEdge>>(`/api/v1/snapshots/${snapshotId}/nodes/${nodeId}/edges?${qs}`, undefined, signal);
+};
+
+export type GraphPath = { length: number; minConfidence: number; certain: boolean; edges: GraphEdge[] };
+export type PathResult = {
+  from: string;
+  to: string;
+  found: boolean;
+  shortestLength: number | null;
+  paths: GraphPath[];
+  truncated: boolean;
+  maxDepth: number;
+};
+
+export const findPaths = (
+  snapshotId: string,
+  p: { from: string; to: string; maxDepth: number; direction?: "OUT" | "IN"; types?: string },
+  signal?: AbortSignal,
+) => {
+  const qs = new URLSearchParams({ from: p.from, to: p.to, maxDepth: String(p.maxDepth), limit: "5" });
+  if (p.direction) qs.set("direction", p.direction);
+  if (p.types) qs.set("types", p.types);
+  return request<PathResult>(`/api/v1/snapshots/${snapshotId}/paths?${qs}`, undefined, signal);
+};

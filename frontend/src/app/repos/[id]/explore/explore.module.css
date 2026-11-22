@@ -1,0 +1,433 @@
+.toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.toolbarLeft {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.mapPicker {
+  min-width: 320px;
+}
+
+/* ---- map view ---- */
+.mapLayout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr) 320px;
+  gap: 16px;
+  align-items: start;
+}
+
+.panel {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--canvas);
+}
+
+.panel h3 {
+  font-size: 14px;
+}
+
+.results {
+  display: grid;
+  max-height: 520px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.results button {
+  display: grid;
+  gap: 1px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+}
+
+.results button:hover {
+  background: var(--subtle);
+}
+
+.results button[aria-current="true"] {
+  background: var(--green-subtle);
+}
+
+.resultName {
+  font-weight: 600;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.resultPkg {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.center {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.canvas {
+  height: 620px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--canvas);
+}
+
+.canvas :global(.react-flow) {
+  --xy-background-color: var(--canvas);
+  --xy-background-pattern-color: var(--border);
+  --xy-edge-stroke: var(--muted);
+  --xy-edge-label-background-color: var(--canvas);
+  --xy-edge-label-color: var(--muted);
+  --xy-controls-button-background-color: var(--subtle);
+  --xy-controls-button-background-color-hover: var(--inset);
+  --xy-controls-button-color: var(--fg);
+  --xy-controls-button-border-color: var(--border);
+  --xy-minimap-background-color: var(--subtle);
+  font-family: var(--font);
+}
+
+.canvas :global(.react-flow__handle) {
+  opacity: 0;
+}
+
+.canvas :global(.react-flow__edge-text) {
+  font-size: 11px;
+}
+
+.node {
+  padding: 0 !important;
+  border: 1px solid var(--border) !important;
+  border-left-width: 4px !important;
+  border-radius: 8px !important;
+  background: var(--canvas) !important;
+  color: var(--fg) !important;
+  box-shadow: none !important;
+}
+
+.kindTYPE {
+  border-left-color: var(--fg) !important;
+}
+
+.kindMETHOD {
+  border-left-color: var(--green) !important;
+}
+
+.kindFIELD {
+  border-left-color: var(--yellow) !important;
+}
+
+.kindFILE,
+.kindPACKAGE {
+  border-left-color: var(--muted) !important;
+}
+
+.external {
+  border-style: dashed !important;
+  border-left-width: 1px !important;
+  background: var(--subtle) !important;
+}
+
+.centerNode {
+  box-shadow: 0 0 0 2px var(--orange) !important;
+}
+
+.selected {
+  box-shadow: 0 0 0 2px var(--green) !important;
+}
+
+.nodeLabel {
+  display: grid;
+  gap: 2px;
+  height: 100%;
+  align-content: center;
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.nodeLabel strong {
+  overflow: hidden;
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nodeLabel span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.edgeSure :global(.react-flow__edge-path) {
+  stroke: var(--muted);
+  stroke-width: 1.5;
+}
+
+.edgeGuess :global(.react-flow__edge-path) {
+  stroke: var(--yellow);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 4;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch {
+  width: 22px;
+  height: 0;
+  border-top: 2px solid var(--muted);
+}
+
+.swatchGuess {
+  border-top: 2px dashed var(--yellow);
+}
+
+.swatchOutside {
+  width: 14px;
+  height: 10px;
+  border: 1px dashed var(--muted);
+  border-radius: 3px;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  font-size: 13px;
+}
+
+.filters label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---- detail panel ---- */
+.detailName {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.detailMeta {
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.stat {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius);
+  background: var(--subtle);
+}
+
+.stat strong {
+  font-size: 18px;
+}
+
+.stat span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.connections {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.connections li {
+  display: grid;
+  gap: 1px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--border-muted);
+  font-size: 12.5px;
+}
+
+.connections li:last-child {
+  border-bottom: 0;
+}
+
+.connections button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.connections button:hover {
+  color: var(--green);
+  text-decoration: underline;
+}
+
+.connWhere {
+  color: var(--muted);
+}
+
+/* ---- paths ---- */
+.pathForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 14px;
+}
+
+.picker {
+  position: relative;
+}
+
+.pickerList {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  max-height: 280px;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--canvas);
+  box-shadow: var(--shadow);
+}
+
+.pathList {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.path {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius);
+}
+
+.pathHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.steps {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 22px;
+  font-size: 13.5px;
+}
+
+.steps code {
+  font-size: 12.5px;
+}
+
+/* ---- compare ---- */
+.compareSummary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.changeList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.changeList li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border-muted);
+  font-size: 13.5px;
+}
+
+.changeList li:last-child {
+  border-bottom: 0;
+}
+
+@media (max-width: 1180px) {
+  .mapLayout {
+    grid-template-columns: 240px minmax(0, 1fr);
+  }
+
+  .detail {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 820px) {
+  .mapLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .pathForm {
+    grid-template-columns: 1fr;
+  }
+
+  .mapPicker {
+    min-width: 0;
+    width: 100%;
+  }
+}

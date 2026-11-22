@@ -1,0 +1,271 @@
+.page {
+  display: grid;
+  gap: 20px;
+}
+
+.header {
+  display: grid;
+  gap: 8px;
+}
+
+.back {
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.headerRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.headerRow p {
+  margin-top: 6px;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.download {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* ---- summary ---- */
+.summary {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--subtle);
+}
+
+.summaryTop {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 24px;
+  align-items: start;
+}
+
+.verdict {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+
+.verdict h2 {
+  font-size: 20px;
+  line-height: 1.35;
+}
+
+.versions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.scoreBox {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 4px 6px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--canvas);
+}
+
+.score {
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.scoreOf {
+  color: var(--muted);
+}
+
+.scoreBox > div {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+}
+
+.why {
+  display: grid;
+  gap: 10px;
+}
+
+.why ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.factors {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.factors td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-muted);
+  vertical-align: top;
+}
+
+.factors td:first-child {
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.num {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- finding lists ---- */
+.count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 20px;
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--inset);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  vertical-align: 2px;
+}
+
+.sectionBody {
+  padding: 6px 18px 14px;
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.row > svg {
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+.rowMain {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.nameLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.name {
+  font-size: 13.5px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.where {
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.empty {
+  padding: 10px 0;
+  color: var(--muted);
+}
+
+.chain {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+}
+
+.hop {
+  overflow-wrap: anywhere;
+}
+
+.hop code {
+  font-size: 12.5px;
+}
+
+.hopVerb {
+  color: var(--muted);
+}
+
+.hopWhere {
+  margin-left: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .summaryTop {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* "Why?" opens the evidence chain in place */
+.why2 > summary {
+  display: inline-flex;
+  width: fit-content;
+  color: var(--muted);
+  font-size: 12.5px;
+  cursor: pointer;
+  list-style: none;
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+  text-underline-offset: 2px;
+}
+
+.why2 > summary::-webkit-details-marker {
+  display: none;
+}
+
+.why2 > summary:hover {
+  color: var(--green);
+}
+
+.why2[open] > summary {
+  margin-bottom: 6px;
+}
