@@ -32,6 +32,9 @@ public class BlastRadiusCalculator {
     public record Result(List<Affected> affected, boolean truncated) {
     }
 
+    /** The edge type of a reversed override hop: the dependent is a supertype method the changed method overrides. */
+    public static final String DISPATCH = "OVERRIDDEN_BY";
+
     /**
      * @param seeds        nodes that changed (they are not reported as affected)
      * @param maxDepth     hops to follow, at least 1
@@ -42,6 +45,19 @@ public class BlastRadiusCalculator {
      */
     public Result calculate(Set<UUID> seeds, int maxDepth, int maxAffected,
                             Function<Collection<UUID>, List<EdgeView>> dependentsOf, int edgeCap) {
+        return calculateLevels(seeds, maxDepth, maxAffected, frontier -> {
+            List<EdgeView> edges = dependentsOf.apply(frontier);
+            return new Level(edges, edges.size() >= edgeCap);
+        });
+    }
+
+    /** One level of dependents; {@code capped} when the lookup stopped at its limit and more edges may exist. */
+    public record Level(List<EdgeView> edges, boolean capped) {
+    }
+
+    /** As {@link #calculate}, with each lookup reporting itself whether it was capped. */
+    public Result calculateLevels(Set<UUID> seeds, int maxDepth, int maxAffected,
+                                  Function<Collection<UUID>, Level> dependentsOf) {
         Map<UUID, Affected> found = new LinkedHashMap<>();
         Set<UUID> visited = new HashSet<>(seeds);
         Set<UUID> frontier = new LinkedHashSet<>(seeds);
@@ -50,8 +66,9 @@ public class BlastRadiusCalculator {
         boolean truncated = false;
 
         for (int depth = 1; depth <= Math.max(1, maxDepth) && !frontier.isEmpty() && !truncated; depth++) {
-            List<EdgeView> edges = dependentsOf.apply(frontier);
-            if (edges.size() >= edgeCap) truncated = true;
+            Level lookup = dependentsOf.apply(frontier);
+            List<EdgeView> edges = lookup.edges();
+            if (lookup.capped()) truncated = true;
 
             Map<UUID, Affected> level = new LinkedHashMap<>();
             for (EdgeView e : edges) {
@@ -70,7 +87,8 @@ public class BlastRadiusCalculator {
                     parentConfidence = parent.confidence();
                     seed = parent.seedId();
                 }
-                boolean certain = parentCertain && "RESOLVED".equals(e.resolution());
+                // a call through a supertype method may dispatch to another implementation: never proven
+                boolean certain = parentCertain && "RESOLVED".equals(e.resolution()) && !DISPATCH.equals(e.edgeType());
                 double confidence = Math.min(parentConfidence, e.confidence());
                 Affected candidate = new Affected(dependent, depth, seed, certain, confidence, List.copyOf(path));
                 Affected current = level.get(dependent);

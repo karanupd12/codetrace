@@ -87,6 +87,21 @@ public class GraphQueryService {
         return dao.touching(snapshot, targets, Direction.IN, DEPENDENCY_TYPES, TRAVERSABLE_STATES, true, limit);
     }
 
+    /** The edge type of a reversed OVERRIDES edge in {@link #dispatchDependentsOf}. */
+    public static final String OVERRIDDEN_BY = "OVERRIDDEN_BY";
+
+    /**
+     * For each given method, the supertype methods it overrides, as reversed edges ({@code inherited OVERRIDDEN_BY
+     * method}): a call to the inherited method may dispatch to the given one, so its callers depend on it too.
+     */
+    public List<EdgeView> dispatchDependentsOf(UUID snapshot, Collection<UUID> methods, int limit) {
+        return dao.touching(snapshot, methods, Direction.OUT, Set.of("OVERRIDES"), TRAVERSABLE_STATES, true, limit).stream()
+                .map(e -> new EdgeView(e.id(), e.dstId(), e.dstName(), e.srcId(), e.srcName(), OVERRIDDEN_BY, e.resolution(),
+                        e.confidence(), e.evidenceKind(), e.reason(), e.alternativeGroup(), e.evidencePath(),
+                        e.evidenceLine(), e.occurrences(), e.extractionMethod(), e.resolverVersion()))
+                .toList();
+    }
+
     /** CONTAINS edges into the given nodes: the type or file that declares each of them. */
     public List<EdgeView> containersOf(UUID snapshot, Collection<UUID> members, int limit) {
         return dao.touching(snapshot, members, Direction.IN, Set.of("CONTAINS"), TRAVERSABLE_STATES, true, limit);

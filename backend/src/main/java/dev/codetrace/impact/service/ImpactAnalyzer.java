@@ -47,8 +47,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class ImpactAnalyzer {
     // 2: edits to comments and whitespace no longer mark symbols as changed; 3: test classes named after changed code;
-    // 4: HTTP endpoints added, removed, modified or affected
-    public static final String ALGORITHM_VERSION = "impact-4";
+    // 4: HTTP endpoints added, removed, modified or affected; 5: callers of overridden supertype methods (uncertain)
+    public static final String ALGORITHM_VERSION = "impact-5";
     private static final int MAX_POSSIBLE = 200;
 
     private final ChangedSymbolMapper mapper;
@@ -86,9 +86,15 @@ public class ImpactAnalyzer {
         }
 
         int edgeCap = limits.maxAffected() * 10;
-        Result radius = calculator.calculate(new LinkedHashSet<>(seeds.keySet()), depth, limits.maxAffected(),
-                frontier -> graph.dependentsOf(baseSnapshot, frontier, edgeCap),
-                edgeCap);
+        Result radius = calculator.calculateLevels(new LinkedHashSet<>(seeds.keySet()), depth, limits.maxAffected(),
+                frontier -> {
+                    List<EdgeView> direct = graph.dependentsOf(baseSnapshot, frontier, edgeCap);
+                    List<EdgeView> dispatch = graph.dispatchDependentsOf(baseSnapshot, frontier, edgeCap);
+                    List<EdgeView> edges = new ArrayList<>(direct);
+                    edges.addAll(dispatch);
+                    edges.sort(Comparator.comparingLong(EdgeView::id));
+                    return new BlastRadiusCalculator.Level(edges, direct.size() >= edgeCap || dispatch.size() >= edgeCap);
+                });
 
         Map<UUID, Integer> direct = graph.directDependentCounts(baseSnapshot, seeds.keySet());
         List<ChangedEntry> changed = mapping.symbols().stream()

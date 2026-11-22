@@ -72,7 +72,8 @@ public class GraphIntegrityRepository {
                   or (e.edge_type = 'IMPORTS'    and s.node_type = 'FILE' and (d.id is null or d.node_type in ('TYPE', 'PACKAGE')))
                   or (e.edge_type = 'REFERENCES' and s.node_type in ('TYPE', 'METHOD', 'FIELD') and (d.id is null or d.node_type = 'TYPE'))
                   or (e.edge_type = 'CALLS'      and s.node_type in ('TYPE', 'METHOD', 'FIELD') and (d.id is null or d.node_type = 'METHOD'))
-                  or (e.edge_type = 'TESTS'      and s.node_type = 'TYPE' and d.node_type = 'TYPE'))""",
+                  or (e.edge_type = 'TESTS'      and s.node_type = 'TYPE' and d.node_type = 'TYPE')
+                  or (e.edge_type = 'OVERRIDES'  and s.node_type = 'METHOD' and d.node_type = 'METHOD'))""",
                 snapshotId, expectedNodes, expectedEdges);
         return violations;
     }

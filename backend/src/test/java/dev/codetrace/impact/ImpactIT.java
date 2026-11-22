@@ -160,6 +160,38 @@ class ImpactIT {
                 }
             }
             """;
+    private static final String GATEWAY = """
+            package shop;
+
+            public interface Gateway {
+                double charge(double amount);
+            }
+            """;
+    private static final String CARD_GATEWAY = """
+            package shop;
+
+            public class CardGateway implements Gateway {
+                @Override
+                public double charge(double amount) {
+                    return amount;
+                }
+            }
+            """;
+    /** Calls the gateway through the interface: only override linking connects it to CardGateway. */
+    private static final String PAYMENTS = """
+            package shopweb;
+
+            import shop.CardGateway;
+            import shop.Gateway;
+
+            public class Payments {
+                private final Gateway gateway = new CardGateway();
+
+                public double settle(double amount) {
+                    return gateway.charge(amount);
+                }
+            }
+            """;
     private static final String CHAIN = """
             package shopweb;
 
@@ -205,6 +237,15 @@ class ImpactIT {
             commits.add(GitFixtures.commit(repo, files(totalReshaped, priceChanged, false), commits.get(3), "price tweak"));
             // a commit that is never indexed or graphed, for the "build the graph first" precondition
             commits.add(GitFixtures.commit(repo, files(totalReshaped, priceChanged.replace("+ 0", "+ 1"), false), commits.get(4), "never graphed"));
+            // commits 6 and 7: a payment gateway interface whose implementation changes (override linking)
+            Map<String, Entry> withGateway = new LinkedHashMap<>(files(totalReshaped, priceChanged, false));
+            withGateway.put("core/src/main/java/shop/Gateway.java", Entry.file(GATEWAY));
+            withGateway.put("core/src/main/java/shop/CardGateway.java", Entry.file(CARD_GATEWAY));
+            withGateway.put("web/src/main/java/shopweb/Payments.java", Entry.file(PAYMENTS));
+            commits.add(GitFixtures.commit(repo, withGateway, commits.get(5), "payments"));
+            Map<String, Entry> feeChanged = new LinkedHashMap<>(withGateway);
+            feeChanged.put("core/src/main/java/shop/CardGateway.java", Entry.file(CARD_GATEWAY.replace("return amount;", "return amount * 1.02;")));
+            commits.add(GitFixtures.commit(repo, feeChanged, commits.get(6), "card fee"));
         }
     }
 
@@ -264,6 +305,16 @@ class ImpactIT {
             if (s.equals("FAILED") || s.equals("DEAD_LETTERED")) throw new AssertionError("job failed: " + j);
             return s.equals("SUCCEEDED");
         });
+    }
+
+    /** Indexes and graphs one commit through the API and records its snapshot. */
+    private void prepare(String commit) throws Exception {
+        ResponseEntity<String> ix = post("/api/v1/repositories/" + repoId + "/index-jobs", "{\"commitHash\":\"" + commit + "\"}");
+        assertThat(ix.getStatusCode()).as(ix.getBody()).isEqualTo(HttpStatus.ACCEPTED);
+        awaitJob(json.readTree(ix.getBody()).get("id").asText());
+        JsonNode gb = json.readTree(post("/api/v1/repositories/" + repoId + "/graph-snapshots", "{\"commitHash\":\"" + commit + "\"}").getBody());
+        awaitJob(gb.at("/job/id").asText());
+        snapshots.put(commit, UUID.fromString(gb.at("/snapshot/id").asText()));
     }
 
     private ImpactAnalysis analyze(int baseIdx, int headIdx) throws Exception {
@@ -643,5 +694,25 @@ class ImpactIT {
 
         assertThat(count("select count(*) from impact_report")).isZero();
         assertThat(count("select count(*) from impact_finding")).isZero();
+    }
+
+    @Test
+    @Order(15)
+    void changingAnImplementationReachesCallersOfTheInterfaceMethodAsUncertain() throws Exception {
+        prepare(commits.get(6));
+        prepare(commits.get(7));
+
+        ImpactAnalysis a = analyze(6, 7);
+
+        assertThat(kinds(a.changed())).isEqualTo("MODIFIED shop.CardGateway#charge(double)");
+        Set<String> labelled = Set.of("shop.Gateway#charge(double)", "shopweb.Payments#settle(double)");
+        report("override-dispatch", names(a.affected()), labelled);
+        AffectedSymbol caller = a.affected().stream().filter(x -> x.qualifiedName().equals("shopweb.Payments#settle(double)"))
+                .findFirst().orElseThrow();
+        assertThat(caller.certain()).isFalse();
+        assertThat(caller.distance()).isEqualTo(2);
+        assertThat(caller.chain()).extracting(h -> h.from() + " " + h.edgeType() + " " + h.to()).containsExactly(
+                "shopweb.Payments#settle(double) CALLS shop.Gateway#charge(double)",
+                "shop.Gateway#charge(double) OVERRIDDEN_BY shop.CardGateway#charge(double)");
     }
 }

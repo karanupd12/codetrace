@@ -35,7 +35,7 @@ import java.util.UUID;
  */
 public final class GraphBuilder {
     /** Recorded on every snapshot and edge so results are traceable to the algorithm that produced them. */
-    public static final String VERSION = "graph-builder-3"; // 3: TESTS edges by naming convention
+    public static final String VERSION = "graph-builder-4"; // 3: TESTS edges by naming convention; 4: OVERRIDES edges
     private static final Set<String> INCLUDED_STATUSES = Set.of("PARSED", "PARTIAL");
 
     public Result build(UUID snapshotId, Input in, Limits limits) {
@@ -97,6 +97,7 @@ public final class GraphBuilder {
                 if (r.kind().equals(kind)) typeRef(idx, types, r, EdgeType.valueOf(kind), true, sink, stats);
             }
         }
+        overrideLinks(idx, sink);
         for (RefFact r : refs) {
             if (r.kind().equals("REFERENCES")) typeRef(idx, types, r, EdgeType.REFERENCES, false, sink, stats);
         }
@@ -186,6 +187,67 @@ public final class GraphBuilder {
         }
         if (res.state() == Resolution.RESOLVED && res.single().id().equals(owner.id())) return; // no self-references
         emitResolved(sink, owner, edgeType, res, r.name(), res.evidenceKind(), r.path(), r.line());
+    }
+
+    // ---- overrides ----------------------------------------------------------------------------------------------
+
+    /**
+     * A method links to every method of a resolved ancestor type that it overrides or implements: same name and same
+     * parameter types as written, with type arguments ignored. Static, private and constructor methods never override.
+     * An ancestor method whose parameters use the ancestor's type variables (e.g. {@code save(T)}) is not matched.
+     */
+    private void overrideLinks(SymbolIndex idx, EdgeSink sink) {
+        List<Node> types = idx.nodeById.values().stream()
+                .filter(n -> n.type() == NodeType.TYPE && idx.supertypes.containsKey(n.id()))
+                .sorted(Comparator.comparing(Node::path).thenComparing(Node::qualifiedName)).toList();
+        for (Node type : types) {
+            List<Node> methods = idx.methodsByType.getOrDefault(type.id(), List.of()).stream()
+                    .filter(GraphBuilder::canOverride).toList();
+            if (methods.isEmpty()) continue;
+            for (Node ancestor : ancestors(idx, type)) {
+                for (Node inherited : idx.methodsByType.getOrDefault(ancestor.id(), List.of())) {
+                    if (!canOverride(inherited)) continue;
+                    String signature = erased(inherited.signature());
+                    for (Node m : methods) {
+                        if (erased(m.signature()).equals(signature)) {
+                            sink.add(m, EdgeType.OVERRIDES, inherited, "", Resolution.RESOLVED, 1.0, "SIGNATURE_MATCH",
+                                    "", "", m.path(), m.startLine());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Resolved supertypes, transitively, nearest first; cycle-safe. */
+    private static List<Node> ancestors(SymbolIndex idx, Node type) {
+        List<Node> out = new ArrayList<>();
+        Set<UUID> seen = new HashSet<>(Set.of(type.id()));
+        java.util.ArrayDeque<Node> queue = new java.util.ArrayDeque<>(idx.supertypes.getOrDefault(type.id(), List.of()));
+        while (!queue.isEmpty()) {
+            Node t = queue.poll();
+            if (!seen.add(t.id())) continue;
+            out.add(t);
+            queue.addAll(idx.supertypes.getOrDefault(t.id(), List.of()));
+        }
+        return out;
+    }
+
+    private static boolean canOverride(Node method) {
+        if (!"METHOD".equals(method.subtype())) return false;
+        List<String> modifiers = List.of(method.modifiers().split("[\\s,]+"));
+        return !modifiers.contains("static") && !modifiers.contains("private");
+    }
+
+    /** {@code put(Map<String,Integer>,int)} -> {@code put(Map,int)}. */
+    static String erased(String signature) {
+        String s = signature;
+        String previous;
+        do {
+            previous = s;
+            s = s.replaceAll("<[^<>]*>", "");
+        } while (!s.equals(previous));
+        return s.replace(" ", "");
     }
 
     // ---- test links -------------------------------------------------------------------------------------------------

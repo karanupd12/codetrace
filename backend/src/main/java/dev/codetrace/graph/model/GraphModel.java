@@ -11,7 +11,7 @@ public final class GraphModel {
 
     public enum NodeType { FILE, PACKAGE, TYPE, METHOD, FIELD }
 
-    public enum EdgeType { CONTAINS, CALLS, REFERENCES, EXTENDS, IMPLEMENTS, IMPORTS, TESTS }
+    public enum EdgeType { CONTAINS, CALLS, REFERENCES, EXTENDS, IMPLEMENTS, IMPORTS, TESTS, OVERRIDES }
 
     /**
      * RESOLVED: evidence supports exactly one target. AMBIGUOUS: several candidates, one edge each, sharing an
