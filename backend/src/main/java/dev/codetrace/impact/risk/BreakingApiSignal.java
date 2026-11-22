@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 /**
  * Removing a symbol (which includes changing its signature) or narrowing its visibility breaks every dependent that
  * still uses the old form. Public and protected symbols are weighted highest because code outside the package can use
- * them.
+ * them. A removed HTTP endpoint breaks its clients outside the repository, so it counts as fully breaking.
  */
 @Component
 public class BreakingApiSignal implements RiskSignal {
@@ -44,6 +44,12 @@ public class BreakingApiSignal implements RiskSignal {
                 reason = "Visibility of " + c.base().qualifiedName() + " was reduced; " + c.directDependents()
                         + " direct dependent(s).";
             }
+        }
+        List<String> removedEndpoints = a.endpoints().stream().filter(e -> "REMOVED".equals(e.change()))
+                .map(e -> e.label()).toList();
+        if (!removedEndpoints.isEmpty() && points < 20) {
+            points = 20;
+            reason = removedEndpoints.size() + " HTTP endpoint(s) removed or remapped, e.g. " + removedEndpoints.get(0) + ".";
         }
         return new RiskFactor(id(), points, maxPoints(), reason);
     }

@@ -292,7 +292,7 @@ export type Hop = {
   line: number;
 };
 
-export type FindingType = "CHANGED" | "AFFECTED" | "POSSIBLE";
+export type FindingType = "CHANGED" | "AFFECTED" | "POSSIBLE" | "ENDPOINT";
 
 export type Finding = {
   findingType: FindingType;

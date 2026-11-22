@@ -91,7 +91,7 @@ class ImpactJobHandlerTest {
     @Test
     void successStoresTheScoredAnalysis() {
         ChangeSet cs = new ChangeSet("a", "b", List.of());
-        ImpactAnalysis analysis = new ImpactAnalysis("impact-1", 4, List.of(), List.of(), List.of(), 0, 0, false);
+        ImpactAnalysis analysis = new ImpactAnalysis("impact-1", 4, List.of(), List.of(), List.of(), List.of(), 0, 0, false);
         RiskAssessment risk = new RiskAssessment(0, Level.LOW, List.of());
         when(detector.detect(eq(gitRepo), anyString(), anyString())).thenReturn(cs);
         when(analyzer.analyze(any(), any(), eq(cs), anyInt())).thenReturn(analysis);

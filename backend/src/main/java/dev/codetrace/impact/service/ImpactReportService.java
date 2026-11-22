@@ -28,7 +28,7 @@ import org.springframework.stereotype.Service;
 /** Requesting and reading impact reports. The analysis itself runs in the worker as an IMPACT job. */
 @Service
 public class ImpactReportService {
-    private static final Set<String> FINDING_TYPES = Set.of("CHANGED", "AFFECTED", "POSSIBLE");
+    private static final Set<String> FINDING_TYPES = Set.of("CHANGED", "AFFECTED", "POSSIBLE", "ENDPOINT");
     private static final TypeReference<List<RiskFactor>> RISK_FACTORS = new TypeReference<>() {
     };
 
@@ -101,7 +101,7 @@ public class ImpactReportService {
     public Page<Finding> findings(UUID reportId, String type, String module, int limit, int offset) {
         ImpactReport r = completed(reportId);
         if (type != null && !FINDING_TYPES.contains(type)) {
-            throw ApiException.badRequest("type must be one of CHANGED, AFFECTED, POSSIBLE.");
+            throw ApiException.badRequest("type must be one of CHANGED, AFFECTED, POSSIBLE, ENDPOINT.");
         }
         return findings.page(r.id(), type, module, Bounds.limit(limit, 500), Bounds.offset(offset));
     }

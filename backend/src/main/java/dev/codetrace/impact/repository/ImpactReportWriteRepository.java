@@ -1,7 +1,9 @@
 package dev.codetrace.impact.repository;
 
 import dev.codetrace.common.util.SourcePaths;
+import dev.codetrace.impact.engine.EndpointImpactCalculator;
 import dev.codetrace.impact.model.ImpactAnalysis;
+import dev.codetrace.impact.model.ImpactAnalysis.EndpointImpact;
 import dev.codetrace.common.util.Batches;
 import dev.codetrace.common.util.JsonCodec;
 import dev.codetrace.impact.model.ImpactAnalysis.AffectedSymbol;
@@ -60,6 +62,15 @@ public class ImpactReportWriteRepository {
             rows.add(new Object[] {reportId, "POSSIBLE", n++, p.qualifiedName(), "", p.path(), p.line(),
                     SourcePaths.displayModule(p.path()), SourcePaths.isTestPath(p.path()), null, null, null, null, null,
                     p.changedSymbol(), p.nodeId(), null});
+        }
+        n = 0;
+        for (EndpointImpact e : a.endpoints()) {
+            boolean affected = EndpointImpactCalculator.AFFECTED.equals(e.change());
+            rows.add(new Object[] {reportId, "ENDPOINT", n++, e.label(), "ENDPOINT", e.path(), e.line(),
+                    SourcePaths.displayModule(e.path()), false, affected ? null : e.change(), null,
+                    affected ? e.distance() : null, affected ? e.certain() : null,
+                    affected ? BigDecimal.valueOf(e.confidence()).setScale(3, RoundingMode.HALF_UP) : null, e.handler(),
+                    null, affected ? json.write(e.chain()) : null});
         }
         for (List<Object[]> batch : Batches.partition(rows)) {
             jdbc.batchUpdate(INSERT, batch);

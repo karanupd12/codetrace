@@ -9,6 +9,7 @@ import dev.codetrace.impact.model.Finding;
 import dev.codetrace.impact.risk.RiskSignal.RiskFactor;
 import dev.codetrace.report.markdown.sections.AffectedSection;
 import dev.codetrace.report.markdown.sections.ChangedSymbolsSection;
+import dev.codetrace.report.markdown.sections.EndpointsSection;
 import dev.codetrace.report.markdown.sections.EvidenceSection;
 import dev.codetrace.report.markdown.sections.FooterSection;
 import dev.codetrace.report.markdown.sections.HeaderSection;
@@ -28,7 +29,7 @@ class MarkdownReportRendererTest {
 
     private final MarkdownReportRenderer renderer = new MarkdownReportRenderer(List.of(new FooterSection(),
             new LimitationsSection(), new PossibleDependentsSection(), new EvidenceSection(), new AffectedSection(),
-            new ChangedSymbolsSection(), new SummarySection(), new HeaderSection())); // deliberately unordered
+            new ChangedSymbolsSection(), new SummarySection(), new HeaderSection(), new EndpointsSection())); // deliberately unordered
 
     private static ImpactReport report(int score, String level, boolean truncated, int unmapped, int nonJava) {
         return new ImpactReport(ID, UUID.randomUUID(), BASE, HEAD, UUID.fromString("00000000-0000-0000-0000-0000000000b1"),
@@ -53,7 +54,7 @@ class MarkdownReportRendererTest {
     }
 
     private ReportData data(ImpactReport r, List<Finding> changed, List<Finding> affected, List<Finding> possible) {
-        return new ReportData(r, "shop", factors(), changed, affected, possible);
+        return new ReportData(r, "shop", factors(), changed, affected, possible, List.of());
     }
 
     private static List<Hop> chain() {
@@ -109,6 +110,21 @@ class MarkdownReportRendererTest {
 
         assertThat(md).contains("## Possible dependents (not proven) (1)")
                 .contains("- `shopweb.Chain#viaChain()` at `web/src/main/java/Chain.java:9` may call `shop.Order#price(double)`");
+    }
+
+    @Test
+    void endpointsAreListedWithHowTheChangeTouchesThem() {
+        Finding removed = new Finding("ENDPOINT", 0, "DELETE /orders/{id}", "ENDPOINT", "web/src/main/java/p/C.java", 20,
+                "web", false, "REMOVED", null, null, null, null, "p.C#delete(long)", List.of());
+        Finding affected = new Finding("ENDPOINT", 1, "GET /orders", "ENDPOINT", "web/src/main/java/p/C.java", 12, "web",
+                false, null, null, 2, false, 0.45, "p.C#list()", chain());
+        String md = renderer.render(new ReportData(report(35, "MEDIUM", false, 0, 0), "shop", factors(), List.of(),
+                List.of(), List.of(), List.of(removed, affected)));
+
+        assertThat(md).contains("## HTTP endpoints (2)")
+                .contains("| REMOVED | `DELETE /orders/{id}` | `p.C#delete(long)` | `web/src/main/java/p/C.java:20` |")
+                .contains("| AFFECTED (distance 2, uncertain) | `GET /orders` | `p.C#list()` |");
+        assertThat(md.indexOf("## HTTP endpoints")).isGreaterThan(md.indexOf("## Summary"));
     }
 
     @Test

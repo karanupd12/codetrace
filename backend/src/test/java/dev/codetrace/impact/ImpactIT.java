@@ -145,6 +145,21 @@ class ImpactIT {
                 }
             }
             """;
+    /** An HTTP entry point whose handler reaches the pricing code through Checkout. */
+    private static final String CHECKOUT_CONTROLLER = """
+            package shopweb;
+
+            import org.springframework.web.bind.annotation.PostMapping;
+            import org.springframework.web.bind.annotation.RestController;
+
+            @RestController
+            public class CheckoutController {
+                @PostMapping("/checkout")
+                public double checkout(double amount) {
+                    return new Checkout().pay(amount);
+                }
+            }
+            """;
     private static final String CHAIN = """
             package shopweb;
 
@@ -169,6 +184,7 @@ class ImpactIT {
         m.put("web/src/main/java/shopweb/Checkout.java", Entry.file(CHECKOUT));
         m.put("web/src/main/java/shopweb/Chain.java", Entry.file(CHAIN));
         m.put("web/src/test/java/shopweb/CheckoutTest.java", Entry.file(CHECKOUT_TEST));
+        m.put("web/src/main/java/shopweb/CheckoutController.java", Entry.file(CHECKOUT_CONTROLLER));
         m.put("core/src/test/java/shop/PricingTest.java", Entry.file(PRICING_TEST));
         return m;
     }
@@ -318,8 +334,11 @@ class ImpactIT {
 
         assertThat(kinds(a.changed())).isEqualTo("MODIFIED shop.Pricing#tax(double)");
         Set<String> labelled = Set.of("shop.Pricing#total(double)", "shop.Order#price(double)", "shopweb.Checkout#pay(double)",
-                "shopweb.CheckoutTest#paysTheTotal()", "shop.PricingTest");
+                "shopweb.CheckoutTest#paysTheTotal()", "shop.PricingTest", "shopweb.CheckoutController#checkout(double)");
         report("body-change", names(a.affected()), labelled);
+
+        assertThat(a.endpoints()).extracting(e -> e.change() + " " + e.label() + " " + e.handler() + " " + e.distance())
+                .containsExactly("AFFECTED POST /checkout shopweb.CheckoutController#checkout(double) 4");
 
         AffectedSymbol named = a.affected().stream().filter(x -> x.qualifiedName().equals("shop.PricingTest")).findFirst().orElseThrow();
         assertThat(named.test()).isTrue();
@@ -356,7 +375,7 @@ class ImpactIT {
         assertThat(kinds(a.changed())).contains("REMOVED shop.Pricing#total(double)")
                 .contains("ADDED shop.Pricing#total(double,int)").doesNotContain("shop.Pricing#tax");
         Set<String> labelled = Set.of("shop.Order#price(double)", "shopweb.Checkout#pay(double)", "shopweb.CheckoutTest#paysTheTotal()",
-                "shop.PricingTest");
+                "shop.PricingTest", "shopweb.CheckoutController#checkout(double)");
         report("signature-change", names(a.affected()), labelled);
 
         ChangedEntry removed = a.changed().stream().filter(c -> c.kind() == Kind.REMOVED).findFirst().orElseThrow();
@@ -384,7 +403,8 @@ class ImpactIT {
         ImpactAnalysis a = analyze(3, 4);
 
         assertThat(kinds(a.changed())).isEqualTo("MODIFIED shop.Order#price(double)");
-        report("possible-dependents", names(a.affected()), Set.of("shopweb.Checkout#pay(double)", "shopweb.CheckoutTest#paysTheTotal()"));
+        report("possible-dependents", names(a.affected()), Set.of("shopweb.Checkout#pay(double)", "shopweb.CheckoutTest#paysTheTotal()",
+                "shopweb.CheckoutController#checkout(double)"));
         assertThat(a.possible()).singleElement().satisfies(p -> {
             assertThat(p.qualifiedName()).isEqualTo("shopweb.Chain#viaChain()");
             assertThat(p.changedSymbol()).isEqualTo("shop.Order#price(double)");
@@ -481,7 +501,7 @@ class ImpactIT {
         assertThat(report.get("baseSnapshotId").asText()).isEqualTo(snapshots.get(commits.get(0)).toString());
         assertThat(report.get("headSnapshotId").asText()).isEqualTo(snapshots.get(commits.get(1)).toString());
         assertThat(report.get("changedCount").asInt()).isEqualTo(1);
-        assertThat(report.get("affectedCount").asInt()).isEqualTo(5);
+        assertThat(report.get("affectedCount").asInt()).isEqualTo(6);
         assertThat(report.get("testsAffectedCount").asInt()).isEqualTo(2);
         assertThat(report.get("possibleCount").asInt()).isZero();
         assertThat(report.get("truncated").asBoolean()).isFalse();
@@ -494,20 +514,26 @@ class ImpactIT {
         assertThat(report.get("riskScore").asInt()).isEqualTo(Math.min(100, sum));
 
         JsonNode affected = get("/api/v1/impact-reports/" + reportId + "/findings?type=AFFECTED");
-        assertThat(affected.get("total").asInt()).isEqualTo(5);
+        assertThat(affected.get("total").asInt()).isEqualTo(6);
         JsonNode first = affected.get("items").get(0);
         assertThat(first.get("distance").asInt()).isEqualTo(1);
         assertThat(first.get("name").asText()).isEqualTo("shop.Pricing#total(double)");
         assertThat(first.get("changedSymbol").asText()).isEqualTo("shop.Pricing#tax(double)");
         assertThat(first.at("/chain/0/path").asText()).isNotBlank();
-        assertThat(affected.get("items").get(4).get("test").asBoolean()).isTrue();
+        assertThat(affected.get("items").get(5).get("test").asBoolean()).isTrue();
+        JsonNode endpoint = get("/api/v1/impact-reports/" + reportId + "/findings?type=ENDPOINT");
+        assertThat(endpoint.get("total").asInt()).isEqualTo(1);
+        assertThat(endpoint.at("/items/0/name").asText()).isEqualTo("POST /checkout");
+        assertThat(endpoint.at("/items/0/changedSymbol").asText()).isEqualTo("shopweb.CheckoutController#checkout(double)");
+        assertThat(endpoint.at("/items/0/distance").asInt()).isEqualTo(4);
+        assertThat(endpoint.at("/items/0/chain")).hasSize(4);
 
         assertThat(get("/api/v1/impact-reports/" + reportId + "/findings?type=CHANGED").get("items").get(0).get("changeKind").asText())
                 .isEqualTo("MODIFIED");
-        assertThat(get("/api/v1/impact-reports/" + reportId + "/findings?type=AFFECTED&module=web").get("total").asInt()).isEqualTo(2);
+        assertThat(get("/api/v1/impact-reports/" + reportId + "/findings?type=AFFECTED&module=web").get("total").asInt()).isEqualTo(3);
         JsonNode page = get("/api/v1/impact-reports/" + reportId + "/findings?type=AFFECTED&limit=2&offset=2");
         assertThat(page.get("items")).hasSize(2);
-        assertThat(page.get("total").asInt()).isEqualTo(5);
+        assertThat(page.get("total").asInt()).isEqualTo(6);
         assertThat(rest.getForEntity("/api/v1/impact-reports/" + reportId + "/findings?type=NOPE", String.class).getStatusCode())
                 .isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(get(reports()).get(0).get("id").asText()).isEqualTo(reportId.toString());

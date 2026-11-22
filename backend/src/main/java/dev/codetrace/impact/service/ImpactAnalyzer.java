@@ -4,6 +4,11 @@ import dev.codetrace.common.util.Bounds;
 import dev.codetrace.common.util.JavaSignatures;
 import dev.codetrace.common.util.SourcePaths;
 import dev.codetrace.impact.engine.BlastRadiusCalculator;
+import dev.codetrace.impact.engine.EndpointImpactCalculator;
+import dev.codetrace.impact.model.ImpactAnalysis.EndpointImpact;
+import dev.codetrace.graph.service.GraphSnapshotService;
+import dev.codetrace.symbols.model.IndexedEndpoint;
+import dev.codetrace.symbols.service.SymbolService;
 import dev.codetrace.impact.model.ImpactAnalysis;
 import dev.codetrace.impact.change.ChangeSet;
 import dev.codetrace.impact.change.ChangeSet.FileChange;
@@ -41,19 +46,26 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class ImpactAnalyzer {
-    // 2: edits to comments and whitespace no longer mark symbols as changed; 3: test classes named after changed code
-    public static final String ALGORITHM_VERSION = "impact-3";
+    // 2: edits to comments and whitespace no longer mark symbols as changed; 3: test classes named after changed code;
+    // 4: HTTP endpoints added, removed, modified or affected
+    public static final String ALGORITHM_VERSION = "impact-4";
     private static final int MAX_POSSIBLE = 200;
 
     private final ChangedSymbolMapper mapper;
     private final GraphQueryService graph;
     private final ImpactProperties limits;
+    private final GraphSnapshotService snapshots;
+    private final SymbolService symbols;
     private final BlastRadiusCalculator calculator = new BlastRadiusCalculator();
+    private final EndpointImpactCalculator endpointCalculator = new EndpointImpactCalculator();
 
-    public ImpactAnalyzer(ChangedSymbolMapper mapper, GraphQueryService graph, ImpactProperties limits) {
+    public ImpactAnalyzer(ChangedSymbolMapper mapper, GraphQueryService graph, ImpactProperties limits,
+                          GraphSnapshotService snapshots, SymbolService symbols) {
         this.mapper = mapper;
         this.graph = graph;
         this.limits = limits;
+        this.snapshots = snapshots;
+        this.symbols = symbols;
     }
 
     public ImpactAnalysis analyze(UUID baseSnapshot, UUID headSnapshot, ChangeSet changes, Integer requestedDepth) {
@@ -87,9 +99,21 @@ public class ImpactAnalyzer {
         boolean truncated = radius.truncated() | addNamedTests(baseSnapshot, seeds, affected);
         affected.sort(BY_DISTANCE);
         List<PossibleDependent> possible = possibleDependents(baseSnapshot, seeds, affected);
+        Set<String> changedHandlers = new LinkedHashSet<>();
+        for (ChangedSymbol c : seeds.values()) {
+            changedHandlers.add(EndpointImpactCalculator.symbol(c.base().path(), c.base().qualifiedName()));
+        }
+        List<EndpointImpact> endpoints = endpointCalculator.calculate(endpointsOf(baseSnapshot), endpointsOf(headSnapshot),
+                changedHandlers, affected);
 
-        return new ImpactAnalysis(ALGORITHM_VERSION, depth, changed, List.copyOf(affected), possible,
+        return new ImpactAnalysis(ALGORITHM_VERSION, depth, changed, List.copyOf(affected), possible, endpoints,
                 mapping.unmappedHunks(), changes.nonJavaFileCount(), truncated);
+    }
+
+    /** The endpoints found by the index job a snapshot was built from; none if that job no longer exists. */
+    private List<IndexedEndpoint> endpointsOf(UUID snapshot) {
+        UUID job = snapshots.get(snapshot).sourceJobId();
+        return job == null ? List.of() : symbols.allEndpoints(job);
     }
 
     /** The declarations of the given files in a snapshot, grouped by file. */

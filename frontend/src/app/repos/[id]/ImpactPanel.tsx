@@ -143,6 +143,7 @@ function ReportView({ report }: { report: ImpactReport }) {
   const [changed, setChanged] = useState<Finding[]>([]);
   const [affected, setAffected] = useState<Finding[]>([]);
   const [possible, setPossible] = useState<Finding[]>([]);
+  const [endpoints, setEndpoints] = useState<Finding[]>([]);
   const [totals, setTotals] = useState({ changed: 0, affected: 0, possible: 0 });
   const [error, setError] = useState<string | null>(null);
 
@@ -152,11 +153,13 @@ function ReportView({ report }: { report: ImpactReport }) {
       listFindings(report.id, { type: "CHANGED", limit: 200, offset: 0 }, ctrl.signal),
       listFindings(report.id, { type: "AFFECTED", limit: 300, offset: 0 }, ctrl.signal),
       listFindings(report.id, { type: "POSSIBLE", limit: 100, offset: 0 }, ctrl.signal),
+      listFindings(report.id, { type: "ENDPOINT", limit: 200, offset: 0 }, ctrl.signal),
     ])
-      .then(([c, a, p]) => {
+      .then(([c, a, p, e]) => {
         setChanged(c.items);
         setAffected(a.items);
         setPossible(p.items);
+        setEndpoints(e.items);
         setTotals({ changed: c.total, affected: a.total, possible: p.total });
       })
       .catch((e: unknown) => {
@@ -230,6 +233,35 @@ function ReportView({ report }: { report: ImpactReport }) {
             ))}
           </tbody>
         </table>
+      )}
+
+      {endpoints.length > 0 && (
+        <>
+          <h3>HTTP endpoints ({endpoints.length})</h3>
+          <table className={page.table}>
+            <thead>
+              <tr><th>Change</th><th>Endpoint</th><th>Handler</th><th>Location</th></tr>
+            </thead>
+            <tbody>
+              {endpoints.map((f) => (
+                <tr key={f.ordinal}>
+                  <td>
+                    {f.changeKind ? (
+                      <span className={`${styles.tag} ${styles["tag" + f.changeKind]}`}>{f.changeKind}</span>
+                    ) : (
+                      <span title={f.chain.map((h) => `${h.from} → ${h.to}`).join("\n")}>
+                        affected · {f.distance} hop(s){f.certain ? "" : " · uncertain"}
+                      </span>
+                    )}
+                  </td>
+                  <td className={styles.sym}>{f.name}</td>
+                  <td className={styles.sym}>{f.changedSymbol}</td>
+                  <td className={styles.sym}>{f.path}:{f.line}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       )}
 
       <h3>Affected production code ({production.length}{totals.affected > affected.length ? "+" : ""})</h3>

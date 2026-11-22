@@ -10,7 +10,8 @@ import java.util.UUID;
  * specific base and head snapshot.
  */
 public record ImpactAnalysis(String algorithmVersion, int depth, List<ChangedEntry> changed, List<AffectedSymbol> affected,
-                             List<PossibleDependent> possible, int unmappedHunks, int nonJavaFiles, boolean truncated) {
+                             List<PossibleDependent> possible, List<EndpointImpact> endpoints, int unmappedHunks,
+                             int nonJavaFiles, boolean truncated) {
 
     /** A symbol that changed. {@code base} is null when added, {@code head} is null when removed. */
     public record ChangedEntry(Kind kind, SymbolRef base, SymbolRef head, int directDependents) {
@@ -31,6 +32,14 @@ public record ImpactAnalysis(String algorithmVersion, int depth, List<ChangedEnt
 
     /** A call the resolver could not attribute to a receiver type, whose method name matches a changed method. */
     public record PossibleDependent(UUID nodeId, String qualifiedName, String path, int line, String changedSymbol) {
+    }
+
+    /**
+     * An HTTP endpoint the change ADDED, REMOVED, MODIFIED (its handler changed) or AFFECTED (its handler depends on the
+     * change; {@code chain} is the handler's evidence).
+     */
+    public record EndpointImpact(String change, String label, String handler, String path, int line, String framework,
+                                 String reason, int distance, boolean certain, double confidence, List<Hop> chain) {
     }
 
     public long productionAffected() {

@@ -9,6 +9,7 @@ import dev.codetrace.impact.change.ChangedSymbolMapper.Kind;
 import dev.codetrace.impact.change.SymbolRef;
 import dev.codetrace.impact.model.ImpactAnalysis.AffectedSymbol;
 import dev.codetrace.impact.model.ImpactAnalysis.ChangedEntry;
+import dev.codetrace.impact.model.ImpactAnalysis.EndpointImpact;
 import dev.codetrace.impact.model.ImpactAnalysis.PossibleDependent;
 import dev.codetrace.impact.risk.RiskAssessor.Level;
 import dev.codetrace.impact.risk.RiskAssessor.RiskAssessment;
@@ -43,7 +44,7 @@ class RiskAssessorTest {
     private static ImpactAnalysis analysis(List<ChangedEntry> changed, List<AffectedSymbol> affected, int possible, boolean truncated) {
         List<PossibleDependent> p = IntStream.range(0, possible)
                 .mapToObj(i -> new PossibleDependent(UUID.randomUUID(), "p.Y#c" + i, MAIN, 1, "p.A#a")).toList();
-        return new ImpactAnalysis("impact-1", 4, changed, affected, p, 0, 0, truncated);
+        return new ImpactAnalysis("impact-1", 4, changed, affected, p, List.of(), 0, 0, truncated);
     }
 
     private static List<AffectedSymbol> many(int n, String path) {
@@ -92,6 +93,23 @@ class RiskAssessorTest {
         assertThat(points(s, analysis(List.of(removed("p.A#a", "public", 0)), List.of(), 0, false))).isZero(); // nobody uses it
         assertThat(s.evaluate(analysis(List.of(removed("p.A#a", "public", 3)), List.of(), 0, false)).reason())
                 .contains("p.A#a").contains("3 direct dependent");
+    }
+
+    @Test
+    void aRemovedHttpEndpointIsAFullApiBreak() {
+        EndpointImpact gone = new EndpointImpact("REMOVED", "DELETE /orders/{id}", "p.C#delete(long)", MAIN, 3,
+                "SPRING_MVC", "", 0, true, 1.0, List.of());
+        EndpointImpact added = new EndpointImpact("ADDED", "PUT /orders/{id}", "p.C#put(long)", MAIN, 4, "SPRING_MVC", "",
+                0, true, 1.0, List.of());
+        BreakingApiSignal s = new BreakingApiSignal();
+
+        RiskFactor f = s.evaluate(new ImpactAnalysis("impact-4", 4, List.of(), List.of(), List.of(), List.of(gone, added),
+                0, 0, false));
+
+        assertThat(f.points()).isEqualTo(20);
+        assertThat(f.reason()).contains("1 HTTP endpoint(s) removed").contains("DELETE /orders/{id}");
+        assertThat(points(s, new ImpactAnalysis("impact-4", 4, List.of(), List.of(), List.of(), List.of(added), 0, 0,
+                false))).isZero();
     }
 
     @Test

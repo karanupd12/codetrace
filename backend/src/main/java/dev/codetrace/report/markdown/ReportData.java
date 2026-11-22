@@ -7,7 +7,7 @@ import java.util.List;
 
 /** Everything a report section may draw on: the stored report header and its findings, nothing recomputed. */
 public record ReportData(ImpactReport report, String repositoryName, List<RiskFactor> factors, List<Finding> changed,
-                         List<Finding> affected, List<Finding> possible) {
+                         List<Finding> affected, List<Finding> possible, List<Finding> endpoints) {
 
     public List<Finding> productionAffected() {
         return affected.stream().filter(f -> !f.test()).toList();
