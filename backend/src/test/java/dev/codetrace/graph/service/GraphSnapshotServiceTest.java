@@ -52,7 +52,7 @@ class GraphSnapshotServiceTest {
         jobs = mock(JobRepository.class);
         snapshots = mock(GraphSnapshotRepository.class);
         publisher = mock(JobPublisher.class);
-        JobService jobService = new JobService(jobs, publisher);
+        JobService jobService = new JobService(jobs, publisher, mock(dev.codetrace.jobs.repository.JobEventRepository.class));
         service = new GraphSnapshotService(new SourceRepositoryService(repos, jobService, mock(SourceValidator.class)),
                 jobService, snapshots);
 

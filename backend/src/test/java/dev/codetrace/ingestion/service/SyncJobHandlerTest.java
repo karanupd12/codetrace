@@ -15,7 +15,8 @@ class SyncJobHandlerTest {
     @Test
     void permanentFailureMarksTheRepositorySyncFailed() {
         SourceRepositoryService repos = mock(SourceRepositoryService.class);
-        SyncJobHandler handler = new SyncJobHandler(repos, mock(GitSourceManager.class), mock(RevisionDiscovery.class));
+        SyncJobHandler handler = new SyncJobHandler(repos, mock(GitSourceManager.class), mock(RevisionDiscovery.class),
+                mock(dev.codetrace.jobs.service.JobService.class));
         UUID repoId = UUID.randomUUID();
         Job job = new Job(UUID.randomUUID(), repoId, "SYNC", "FAILED", null, 1, null, null, OffsetDateTime.now(), null,
                 null, null, null, null, null, null, null);

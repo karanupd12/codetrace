@@ -42,7 +42,8 @@ class ImpactJobHandlerTest {
     private final ChangeDetector detector = mock(ChangeDetector.class);
     private final ImpactAnalyzer analyzer = mock(ImpactAnalyzer.class);
     private final RiskAssessor assessor = mock(RiskAssessor.class);
-    private final ImpactJobHandler handler = new ImpactJobHandler(reports, writer, repositories, git, detector, analyzer, assessor);
+    private final ImpactJobHandler handler = new ImpactJobHandler(reports, writer, repositories, git, detector, analyzer, assessor,
+            mock(dev.codetrace.jobs.service.JobService.class));
 
     private final UUID reportId = UUID.randomUUID();
     private final UUID repoId = UUID.randomUUID();

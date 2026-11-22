@@ -2,6 +2,8 @@ package dev.codetrace.jobs.service;
 
 import dev.codetrace.jobs.JobHandler;
 import dev.codetrace.jobs.queue.JobPublisher;
+import dev.codetrace.jobs.model.JobStep;
+import dev.codetrace.jobs.repository.JobEventRepository;
 import dev.codetrace.jobs.repository.JobRepository;
 import dev.codetrace.config.IngestionProperties;
 import dev.codetrace.jobs.JobFailureException;
@@ -36,7 +38,11 @@ public class JobProcessor {
     private final IngestionProperties props;
     private final Map<String, JobHandler> handlers = new HashMap<>();
 
-    public JobProcessor(JobRepository jobs, JobPublisher publisher, IngestionProperties props, List<JobHandler> handlerBeans) {
+    private final JobEventRepository events;
+
+    public JobProcessor(JobRepository jobs, JobPublisher publisher, IngestionProperties props, List<JobHandler> handlerBeans,
+                        JobEventRepository events) {
+        this.events = events;
         this.jobs = jobs;
         this.publisher = publisher;
         this.props = props;
@@ -83,18 +89,26 @@ public class JobProcessor {
         if (mayRetry && category.retryable() && job.attempts() < props.maxAttempts()) {
             log.info("job {} retryable failure ({}); will retry after delay", job.id(), category);
             jobs.markForRetry(job.id(), category.name(), message);
+            event(job, JobStep.RETRYING, "Something went wrong (" + message + "). Trying again in "
+                    + props.retryDelaySeconds() + " s.");
         } else if (mayRetry && category.retryable()) {
             deadLetter(job, handler, category.name(), message);
         } else {
             log.info("job {} failed permanently ({})", job.id(), category);
             jobs.markFailed(job.id(), category.name(), message);
+            event(job, JobStep.FAILED, message);
             if (handler != null) handler.onPermanentFailure(job);
         }
+    }
+
+    private void event(Job job, JobStep step, String message) {
+        events.append(job.id(), job.attempts(), step.name(), message, java.util.Map.of(), JobService.MAX_EVENTS_PER_ATTEMPT);
     }
 
     private void deadLetter(Job job, JobHandler handler, String category, String message) {
         log.warn("job {} dead-lettered ({})", job.id(), category);
         jobs.markDeadLettered(job.id(), category, message);
+        event(job, JobStep.FAILED, "Gave up after " + job.attempts() + " attempts: " + message);
         handler.onPermanentFailure(job);
         publisher.publishDead(job.id(), category);
     }

@@ -1,12 +1,15 @@
 package dev.codetrace.jobs.controller;
 
+import dev.codetrace.jobs.controller.dto.JobEventResponse;
 import dev.codetrace.jobs.controller.dto.JobResponse;
 import dev.codetrace.jobs.service.JobService;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** Job state. Jobs are created by the feature that needs the work (sync, index, graph, impact). */
@@ -23,5 +26,18 @@ public class JobController {
     @GetMapping("/index-jobs/{jobId}")
     public JobResponse job(@PathVariable UUID jobId) {
         return JobResponse.from(jobs.get(jobId));
+    }
+
+    /** A job's progress steps after {@code after}, oldest first. */
+    @GetMapping("/index-jobs/{jobId}/events")
+    public List<JobEventResponse> events(@PathVariable UUID jobId, @RequestParam(defaultValue = "0") int after,
+                                         @RequestParam(defaultValue = "100") int limit) {
+        return jobs.events(jobId, after, limit).stream().map(JobEventResponse::from).toList();
+    }
+
+    /** The newest progress steps of all of a repository's jobs, newest first. */
+    @GetMapping("/repositories/{id}/activity")
+    public List<JobEventResponse> activity(@PathVariable UUID id, @RequestParam(defaultValue = "50") int limit) {
+        return jobs.activity(id, limit).stream().map(JobEventResponse::from).toList();
     }
 }

@@ -3,6 +3,7 @@ package dev.codetrace.jobs.service;
 import dev.codetrace.jobs.JobHandler;
 import dev.codetrace.jobs.model.JobOperation;
 import dev.codetrace.jobs.queue.JobPublisher;
+import dev.codetrace.jobs.repository.JobEventRepository;
 import dev.codetrace.jobs.repository.JobRepository;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -37,6 +38,7 @@ class JobProcessorTest {
     private JobRepository jobs;
     private JobHandler handler;
     private JobPublisher publisher;
+    private JobEventRepository events;
     private JobProcessor processor;
 
     @BeforeEach
@@ -45,7 +47,9 @@ class JobProcessorTest {
         publisher = mock(JobPublisher.class);
         handler = mock(JobHandler.class);
         when(handler.operation()).thenReturn(JobOperation.SYNC);
-        processor = new JobProcessor(jobs, publisher, GitFixtures.props(Path.of("ws"), List.of()), List.of(handler)); // maxAttempts=3
+        events = mock(JobEventRepository.class);
+        processor = new JobProcessor(jobs, publisher, GitFixtures.props(Path.of("ws"), List.of()), List.of(handler),
+                events); // maxAttempts=3
     }
 
     private Job job(String op, int attempts) {
@@ -74,7 +78,8 @@ class JobProcessorTest {
     void dispatchesToTheHandlerOwningTheOperationAndMarksSuccess() {
         JobHandler other = mock(JobHandler.class);
         when(other.operation()).thenReturn(JobOperation.INDEX);
-        processor = new JobProcessor(jobs, publisher, GitFixtures.props(Path.of("ws"), List.of()), List.of(handler, other));
+        processor = new JobProcessor(jobs, publisher, GitFixtures.props(Path.of("ws"), List.of()), List.of(handler, other),
+                mock(JobEventRepository.class));
         claimed(job("INDEX", 1));
 
         processor.process(jobId);
@@ -90,7 +95,7 @@ class JobProcessorTest {
         when(twin.operation()).thenReturn(JobOperation.SYNC);
 
         assertThatThrownBy(() -> new JobProcessor(jobs, publisher, GitFixtures.props(Path.of("ws"), List.of()),
-                List.of(handler, twin))).isInstanceOf(IllegalStateException.class);
+                List.of(handler, twin), mock(JobEventRepository.class))).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
@@ -102,6 +107,21 @@ class JobProcessorTest {
         verify(jobs).markFailed(eq(jobId), eq("INTERNAL"), anyString());
         verify(jobs, never()).markForRetry(any(), any(), any());
         verify(handler, never()).handle(any());
+    }
+
+    @Test
+    void retriesAndFinalFailuresAreReportedAsProgressSteps() {
+        claimed(job("SYNC", 1));
+        doThrow(new JobFailureException(Category.GIT_ERROR, "Network error while contacting the Git host."))
+                .when(handler).handle(any());
+        processor.process(jobId);
+        verify(events).append(eq(jobId), eq(1), eq("RETRYING"),
+                eq("Something went wrong (Network error while contacting the Git host.). Trying again in 2 s."), any(), anyInt());
+
+        claimed(job("SYNC", 1));
+        doThrow(new JobFailureException(Category.INVALID_SOURCE, "Repository no longer exists.")).when(handler).handle(any());
+        processor.process(jobId);
+        verify(events).append(eq(jobId), eq(1), eq("FAILED"), eq("Repository no longer exists."), any(), anyInt());
     }
 
     @Test
@@ -139,7 +159,8 @@ class JobProcessorTest {
             jobs = mock(JobRepository.class);
             handler = mock(JobHandler.class); // fresh mocks: earlier stubbing would otherwise throw on re-stub
             when(handler.operation()).thenReturn(JobOperation.SYNC);
-            processor = new JobProcessor(jobs, publisher, GitFixtures.props(Path.of("ws"), List.of()), List.of(handler));
+            processor = new JobProcessor(jobs, publisher, GitFixtures.props(Path.of("ws"), List.of()), List.of(handler),
+                mock(JobEventRepository.class));
             Job j = job("SYNC", 1);
             claimed(j);
             doThrow(new JobFailureException(c, "nope")).when(handler).handle(any());

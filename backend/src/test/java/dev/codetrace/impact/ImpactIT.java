@@ -533,6 +533,34 @@ class ImpactIT {
     }
 
     @Test
+    @Order(11)
+    void everyJobReportsItsStepsInOrderInPlainWords() throws Exception {
+        UUID indexJob = jdbc.queryForObject("select id from index_job where operation = 'INDEX' and commit_hash = ?", UUID.class,
+                commits.get(0));
+        UUID graphJob = jdbc.queryForObject("select id from index_job where operation = 'GRAPH_BUILD' and commit_hash = ?",
+                UUID.class, commits.get(0));
+
+        assertThat(steps(indexJob)).containsExactly("READING", "READ", "SAVING", "DONE");
+        assertThat(steps(graphJob)).containsExactly("LOADING", "BUILDING_MAP", "SAVING_MAP", "CHECKING_MAP", "MAP_READY");
+        assertThat(steps(reportJobId)).containsExactly("COMPARING", "CHANGES_FOUND", "TRACING", "SCORING", "WRITING_REPORT", "DONE");
+        JsonNode last = get("/api/v1/index-jobs/" + reportJobId + "/events?after=5");
+        assertThat(last).hasSize(1);
+        assertThat(last.at("/0/message").asText()).matches("Analysis ready: (Low|Medium|High|Critical) risk");
+        assertThat(get("/api/v1/index-jobs/" + graphJob + "/events").at("/4/message").asText())
+                .startsWith("Dependency map ready: ");
+
+        JsonNode activity = get("/api/v1/repositories/" + repoId + "/activity?limit=3");
+        assertThat(activity).hasSize(3);
+        assertThat(activity.at("/0/at").asText()).isGreaterThanOrEqualTo(activity.at("/2/at").asText());
+    }
+
+    private List<String> steps(UUID jobId) throws Exception {
+        List<String> out = new ArrayList<>();
+        for (JsonNode e : get("/api/v1/index-jobs/" + jobId + "/events")) out.add(e.get("step").asText());
+        return out;
+    }
+
+    @Test
     @Order(10)
     void aReportIsComputedByTheWorkerAndExposesItsFindings() throws Exception {
         ResponseEntity<String> res = post(reports(), body(0, 1));

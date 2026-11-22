@@ -16,7 +16,10 @@ import dev.codetrace.jobs.JobHandler;
 import dev.codetrace.jobs.model.JobOperation;
 import dev.codetrace.source.service.SourceRepositoryService;
 import dev.codetrace.source.model.SourceRepository;
+import dev.codetrace.jobs.model.JobStep;
+import dev.codetrace.jobs.service.JobService;
 import java.util.List;
+import java.util.Map;
 import org.eclipse.jgit.lib.Repository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,9 +44,12 @@ public class ImpactJobHandler implements JobHandler {
     private final ChangeDetector detector;
     private final ImpactAnalyzer analyzer;
     private final RiskAssessor assessor;
+    private final JobService jobs;
 
     public ImpactJobHandler(ImpactReportRepository reports, ImpactReportWriteRepository writer, SourceRepositoryService repositories,
-                            GitSourceManager git, ChangeDetector detector, ImpactAnalyzer analyzer, RiskAssessor assessor) {
+                            GitSourceManager git, ChangeDetector detector, ImpactAnalyzer analyzer, RiskAssessor assessor,
+                            JobService jobs) {
+        this.jobs = jobs;
         this.reports = reports;
         this.writer = writer;
         this.repositories = repositories;
@@ -70,10 +76,20 @@ public class ImpactJobHandler implements JobHandler {
         SourceRepository repo = repositories.find(report.repositoryId()).orElseThrow(
                 () -> new JobFailureException(Category.INVALID_SOURCE, "Repository no longer exists."));
         try (Repository repository = git.open(repo, List.of(report.baseCommit(), report.headCommit()))) {
+            jobs.progress(job, JobStep.COMPARING, "Comparing the two versions");
             ChangeSet changes = detector.detect(repository, report.baseCommit(), report.headCommit());
+            jobs.progress(job, JobStep.CHANGES_FOUND, "Found changes in " + changes.javaFiles().size() + " Java file"
+                    + (changes.javaFiles().size() == 1 ? "" : "s"), Map.of("files", changes.javaFiles().size()));
+            jobs.progress(job, JobStep.TRACING, "Tracing what depends on the changed code");
             ImpactAnalysis analysis = analyzer.analyze(report.baseSnapshotId(), report.headSnapshotId(), changes, report.depth());
+            jobs.progress(job, JobStep.SCORING, "Scoring the risk: " + analysis.changed().size() + " changed, "
+                    + analysis.affected().size() + " may be affected",
+                    Map.of("changed", analysis.changed().size(), "affected", analysis.affected().size()));
             RiskAssessment risk = assessor.assess(analysis);
+            jobs.progress(job, JobStep.WRITING_REPORT, "Writing the report");
             writer.complete(report.id(), analysis, risk);
+            String level = risk.level().name().charAt(0) + risk.level().name().substring(1).toLowerCase(java.util.Locale.ROOT);
+            jobs.progress(job, JobStep.DONE, "Analysis ready: " + level + " risk", Map.of("score", risk.score()));
             log.info("job {} completed report {}: {} changed, {} affected, risk {} ({})", job.id(), report.id(),
                     analysis.changed().size(), analysis.affected().size(), risk.score(), risk.level());
         } catch (DataAccessException e) {
