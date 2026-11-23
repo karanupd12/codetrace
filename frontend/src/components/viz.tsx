@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Hop } from "@/lib/api";
-import { EDGE_WORD, KIND_HUE, fileName, shortName, type Hue } from "@/lib/words";
+import { EDGE_WORD, KIND_HUE, fileName, kindOfName, shortName, type Hue } from "@/lib/words";
 import Icon, { type IconName } from "./Icon";
 import s from "./viz.module.css";
 
@@ -254,10 +254,6 @@ export function DistanceDots({ distance, tone = "orange" }: { distance: number; 
 
 // ---- evidence chain ----
 
-function kindOf(qualifiedName: string) {
-  return qualifiedName.includes("#") ? "METHOD" : "TYPE";
-}
-
 /** An evidence chain as a vertical line of symbols joined by what connects them. */
 export function ChainView({ chain }: { chain: Hop[] }) {
   if (!chain?.length) return null;
@@ -268,11 +264,11 @@ export function ChainView({ chain }: { chain: Hop[] }) {
         const hop = chain[i];
         return (
           <li key={i}>
-            <div className={`${s.chainNode} ${hue(KIND_HUE[kindOf(name)])}`}>
+            <div className={`${s.chainNode} ${hue(KIND_HUE[kindOfName(name, chain[i]?.path)])}`}>
               <span className={s.chainRail}>
                 <span className={s.chainDot} />
               </span>
-              <KindChip kind={kindOf(name)} name={shortName(name)} title={name} />
+              <KindChip kind={kindOfName(name, chain[i]?.path)} name={shortName(name)} title={name} />
             </div>
             {hop && (
               <div className={s.chainEdge}>

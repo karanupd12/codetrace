@@ -10,13 +10,18 @@ import {
   type Snapshot,
   type SnapshotComparison,
 } from "@/lib/api";
-import { EDGE_WORD, KIND_WORD, fileName, shortName } from "@/lib/words";
-import { Badge, Banner, Card, Field, ShowMore, Skeleton, controlClass, type Tone } from "@/components/ui";
+import { EDGE_WORD, KIND_WORD, fileName, kindOfName, nodeKind, shortName } from "@/lib/words";
+import { Banner, Card, Field, ShowMore, Skeleton, controlClass } from "@/components/ui";
+import { KindChip, SplitBar, StatRow, StatTile } from "@/components/viz";
 import s from "./explore.module.css";
 
 const PAGE = 25;
-const TONE: Record<string, Tone> = { ADDED: "green", REMOVED: "red", CHANGED: "orange" };
-const WORD: Record<string, string> = { ADDED: "Added", REMOVED: "Removed", CHANGED: "Changed" };
+const GUTTER: Record<string, { sign: string; cls: string; word: string }> = {
+  ADDED: { sign: "+", cls: s.gutterAdded, word: "Added" },
+  REMOVED: { sign: "−", cls: s.gutterRemoved, word: "Removed" },
+  CHANGED: { sign: "~", cls: s.gutterChanged, word: "Changed" },
+};
+
 const LINK_TYPES = "CALLS,REFERENCES,EXTENDS,IMPLEMENTS,OVERRIDES,TESTS";
 
 function count(c: SnapshotComparison, list: "nodes" | "edges", change: string) {
@@ -59,10 +64,15 @@ function NodeList({ base, head, total }: { base: string; head: string; total: nu
     >
       <ul className={s.changeList}>
         {items.map((n) => (
-          <li key={`${n.change}|${n.nodeType}|${n.path}|${n.qualifiedName}|${n.signature}`}>
-            <Badge tone={TONE[n.change]}>{WORD[n.change]}</Badge>
-            <span>
-              <code>{shortName(n.qualifiedName)}</code> <span className={s.connWhere}>· {KIND_WORD[n.nodeType as keyof typeof KIND_WORD] ?? n.nodeType} · {fileName(n.path)}</span>
+          <li key={`${n.change}|${n.nodeType}|${n.path}|${n.qualifiedName}|${n.signature}`} className={GUTTER[n.change].cls}>
+            <span className={s.gutterSign} title={GUTTER[n.change].word} aria-label={GUTTER[n.change].word}>
+              {GUTTER[n.change].sign}
+            </span>
+            <span className={s.changeBody}>
+              <KindChip kind={nodeKind(n.nodeType, n.path)} name={shortName(n.qualifiedName)} title={n.qualifiedName} />{" "}
+              <span className={s.connWhere}>
+                {KIND_WORD[n.nodeType as keyof typeof KIND_WORD] ?? n.nodeType} · {fileName(n.path)}
+              </span>
               {n.change === "CHANGED" && n.baseModifiers !== n.headModifiers && (
                 <span className={s.connWhere}>
                   {" "}
@@ -116,11 +126,14 @@ function EdgeList({ base, head }: { base: string; head: string }) {
         <>
           <ul className={s.changeList}>
             {items.map((e, i) => (
-              <li key={`${i}|${e.change}|${e.srcName}|${e.edgeType}|${e.dstName}|${e.resolutionState}`}>
-                <Badge tone={TONE[e.change]}>{e.change === "ADDED" ? "New" : "Gone"}</Badge>
-                <span>
-                  <code>{shortName(e.srcName)}</code> {EDGE_WORD[e.edgeType as keyof typeof EDGE_WORD] ?? e.edgeType.toLowerCase()}{" "}
-                  <code>{e.dstType ? shortName(e.dstName) : e.dstName}</code>{" "}
+              <li key={`${i}|${e.change}|${e.srcName}|${e.edgeType}|${e.dstName}|${e.resolutionState}`} className={GUTTER[e.change].cls}>
+                <span className={s.gutterSign} title={e.change === "ADDED" ? "New" : "Gone"} aria-label={e.change === "ADDED" ? "New" : "Gone"}>
+                  {GUTTER[e.change].sign}
+                </span>
+                <span className={s.changeBody}>
+                  <KindChip kind={kindOfName(e.srcName, e.evidencePath)} name={shortName(e.srcName)} title={e.srcName} />{" "}
+                  <span className={s.changeVerb}>{EDGE_WORD[e.edgeType as keyof typeof EDGE_WORD] ?? e.edgeType.toLowerCase()}</span>{" "}
+                  {e.dstType ? <KindChip kind={kindOfName(e.dstName)} name={shortName(e.dstName)} title={e.dstName} /> : <code>{e.dstName}</code>}{" "}
                   <span className={s.connWhere}>
                     · {fileName(e.evidencePath)}:{e.evidenceLine}
                     {e.resolutionState !== "RESOLVED" ? " · best guess" : ""}
@@ -162,7 +175,7 @@ export default function CompareView({ ready, label }: { ready: Snapshot[]; label
   }
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 16 }}>
       <div className={s.pathForm} style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)" }}>
         <Field label="Older version" htmlFor="cmp-base">
           <select id="cmp-base" className={controlClass} value={base} onChange={(e) => setBase(e.target.value)}>
@@ -188,26 +201,45 @@ export default function CompareView({ ready, label }: { ready: Snapshot[]; label
       {base !== head && !result && !error && <Skeleton lines={3} />}
       {result && (
         <>
-          <div className={s.compareSummary}>
-            <div className={s.stat}>
-              <strong>{count(result, "nodes", "ADDED").toLocaleString()}</strong>
-              <span>classes, methods and fields added</span>
-            </div>
-            <div className={s.stat}>
-              <strong>{count(result, "nodes", "REMOVED").toLocaleString()}</strong>
-              <span>removed</span>
-            </div>
-            <div className={s.stat}>
-              <strong>{count(result, "nodes", "CHANGED").toLocaleString()}</strong>
-              <span>changed (visibility or kind)</span>
-            </div>
-            <div className={s.stat}>
-              <strong>
-                +{count(result, "edges", "ADDED").toLocaleString()} / −{count(result, "edges", "REMOVED").toLocaleString()}
-              </strong>
-              <span>connections</span>
-            </div>
-          </div>
+          <StatRow>
+            <StatTile icon="plus" tone="green" value={count(result, "nodes", "ADDED")} label="classes, methods and fields added" />
+            <StatTile icon="x" tone="red" value={count(result, "nodes", "REMOVED")} label="removed" />
+            <StatTile icon="diff" tone="orange" value={count(result, "nodes", "CHANGED")} label="changed (visibility or kind)" />
+            <StatTile
+              icon="link"
+              tone="teal"
+              value={count(result, "edges", "ADDED") + count(result, "edges", "REMOVED")}
+              display={`+${count(result, "edges", "ADDED").toLocaleString()} / −${count(result, "edges", "REMOVED").toLocaleString()}`}
+              label="connections"
+            />
+          </StatRow>
+          {(result.nodes.length > 0 || result.edges.length > 0) && (
+            <Card>
+              <div className={s.diffBars}>
+                <div>
+                  <h3 className={s.diffTitle}>Code</h3>
+                  <SplitBar
+                    label="Code changes"
+                    parts={[
+                      { key: "a", label: "Added", value: count(result, "nodes", "ADDED"), tone: "green" },
+                      { key: "c", label: "Changed", value: count(result, "nodes", "CHANGED"), tone: "orange" },
+                      { key: "r", label: "Removed", value: count(result, "nodes", "REMOVED"), tone: "red" },
+                    ]}
+                  />
+                </div>
+                <div>
+                  <h3 className={s.diffTitle}>Connections</h3>
+                  <SplitBar
+                    label="Connection changes"
+                    parts={[
+                      { key: "a", label: "Appeared", value: count(result, "edges", "ADDED"), tone: "green" },
+                      { key: "r", label: "Disappeared", value: count(result, "edges", "REMOVED"), tone: "red" },
+                    ]}
+                  />
+                </div>
+              </div>
+            </Card>
+          )}
           {result.nodes.length === 0 && result.edges.length === 0 ? (
             <Banner tone="green" title="No structural difference">
               The two versions declare the same code with the same connections.

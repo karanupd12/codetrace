@@ -117,3 +117,19 @@ export function findingKind(nodeType: string, test: boolean): string {
   if (test) return "TEST";
   return nodeType || "METHOD";
 }
+
+/** Test code, by the same rule the analysis uses: files under src/test/. */
+export function isTestPath(path: string): boolean {
+  return path.startsWith("src/test/") || path.includes("/src/test/");
+}
+
+/** The kind of a map node for colour: test classes and methods count as tests. */
+export function nodeKind(nodeType: string, path: string): string {
+  return isTestPath(path) && (nodeType === "TYPE" || nodeType === "METHOD") ? "TEST" : nodeType;
+}
+
+/** The kind of a symbol known only by its qualified name (and, when known, the file it is in). */
+export function kindOfName(qualifiedName: string, path?: string): string {
+  const kind = qualifiedName.includes("(") ? "METHOD" : qualifiedName.includes("#") ? "FIELD" : "TYPE";
+  return path ? nodeKind(kind, path) : kind;
+}

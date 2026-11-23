@@ -2,10 +2,11 @@
 
 import "@xyflow/react/dist/style.css";
 import dagre from "@dagrejs/dagre";
-import { Background, Controls, MarkerType, ReactFlow, type Edge, type Node } from "@xyflow/react";
-import { useMemo } from "react";
+import { Background, ControlButton, Controls, MarkerType, MiniMap, ReactFlow, type Edge, type Node } from "@xyflow/react";
+import { useEffect, useMemo, useState } from "react";
 import type { GraphEdge, GraphNode, Subgraph } from "@/lib/api";
-import { EDGE_WORD, KIND_WORD } from "@/lib/words";
+import { EDGE_WORD, KIND_HUE, KIND_WORD, nodeKind } from "@/lib/words";
+import Icon from "@/components/Icon";
 import s from "./explore.module.css";
 
 export type Selection =
@@ -31,15 +32,16 @@ function buildFlow(sub: Subgraph, selectedId: string | null): { nodes: Node[]; e
   const nodes: Node[] = sub.nodes.map((n) => ({
     id: n.id,
     position: { x: 0, y: 0 },
-    className: [s.node, s[`kind${n.nodeType}`], n.id === sub.center ? s.centerNode : "", n.id === selectedId ? s.selected : ""].join(" "),
+    className: [s.node, s[`kind${nodeKind(n.nodeType, n.path)}`], n.id === sub.center ? s.centerNode : "", n.id === selectedId ? s.selected : ""].join(" "),
     data: {
       label: (
         <div className={s.nodeLabel}>
           <strong title={n.qualifiedName}>{title(n)}</strong>
-          <span>{KIND_WORD[n.nodeType]}</span>
+          <span>{nodeKind(n.nodeType, n.path) === "TEST" ? `test ${KIND_WORD[n.nodeType]}` : KIND_WORD[n.nodeType]}</span>
         </div>
       ),
       selection: { kind: "node", node: n } satisfies Selection,
+      hue: KIND_HUE[nodeKind(n.nodeType, n.path)] ?? "neutral",
     },
     style: { width: NODE_W, height: NODE_H },
   }));
@@ -64,6 +66,7 @@ function buildFlow(sub: Subgraph, selectedId: string | null): { nodes: Node[]; e
               </div>
             ),
             selection: { kind: "external", name: e.dstName } satisfies Selection,
+            hue: "neutral",
           },
           style: { width: NODE_W, height: NODE_H },
         });
@@ -120,10 +123,17 @@ export default function GraphCanvas({ subgraph, selectedId, onSelect }: {
   onSelect: (s: Selection, recenterId?: string) => void;
 }) {
   const flow = useMemo(() => buildFlow(subgraph, selectedId), [subgraph, selectedId]);
+  const [full, setFull] = useState(false);
+  useEffect(() => {
+    if (!full) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setFull(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [full]);
   return (
-    <div className={s.canvas}>
+    <div className={`${s.canvas} ${full ? s.canvasFull : ""}`}>
       <ReactFlow
-        key={`${subgraph.center}:${subgraph.depth}:${flow.edges.length}`}
+        key={`${subgraph.center}:${subgraph.depth}:${flow.edges.length}:${full}`}
         nodes={flow.nodes}
         edges={flow.edges}
         fitView
@@ -138,7 +148,20 @@ export default function GraphCanvas({ subgraph, selectedId, onSelect }: {
         onPaneClick={() => onSelect(null)}
       >
         <Background gap={20} size={1} />
-        <Controls showInteractive={false} />
+        <Controls showInteractive={false}>
+          <ControlButton onClick={() => setFull((f) => !f)} title={full ? "Exit full screen (Esc)" : "Full screen"} aria-label={full ? "Exit full screen" : "Full screen"}>
+            <Icon name={full ? "x" : "monitor"} size={13} />
+          </ControlButton>
+        </Controls>
+        <MiniMap
+          pannable
+          zoomable
+          nodeStrokeWidth={0}
+          nodeBorderRadius={4}
+          nodeColor={(n) => `var(--${(n.data as { hue: string }).hue === "neutral" ? "border" : (n.data as { hue: string }).hue})`}
+          maskColor="color-mix(in srgb, var(--canvas) 70%, transparent)"
+          ariaLabel="Overview of the map"
+        />
       </ReactFlow>
     </div>
   );

@@ -14,8 +14,9 @@ import {
   type Snapshot,
   type Subgraph,
 } from "@/lib/api";
-import { EDGE_WORD, KIND_WORD, fileName, packageOf, plural, shortName } from "@/lib/words";
+import { EDGE_WORD, KIND_WORD, fileName, kindOfName, nodeKind, packageOf, plural, shortName } from "@/lib/words";
 import { Banner, Button, Details, Help, Segmented, Skeleton, Spinner, controlClass } from "@/components/ui";
+import { KindChip } from "@/components/viz";
 import GraphCanvas, { type Selection } from "./GraphCanvas";
 import s from "./explore.module.css";
 
@@ -91,6 +92,7 @@ function Connections({ snapshotId, node, onFocus }: { snapshotId: string; node: 
                     {dir === "IN" ? "" : `${EDGE_WORD[e.edgeType] ?? e.edgeType} `}
                     {otherId ? (
                       <button type="button" onClick={() => onFocus(otherId)} title="Show on the map">
+                        <span className={`${s.kindDot} ${s[`kind${kindOfName(otherName, dir === "IN" ? e.evidencePath : undefined)}`]}`} aria-hidden />
                         {shortName(otherName)}
                       </button>
                     ) : (
@@ -178,7 +180,7 @@ function DetailPanel({ snapshotId, sel, onFocus }: { snapshotId: string; sel: Se
   return (
     <div className={`${s.panel} ${s.detail}`}>
       <h3>{KIND_WORD[n.nodeType].replace(/^./, (c) => c.toUpperCase())}</h3>
-      <p className={s.detailName}>{shortName(n.qualifiedName)}</p>
+      <KindChip kind={nodeKind(n.nodeType, n.path)} name={shortName(n.qualifiedName)} title={n.qualifiedName} />
       <p className={s.detailMeta}>
         {packageOf(n.qualifiedName)}
         <br />
@@ -186,14 +188,14 @@ function DetailPanel({ snapshotId, sel, onFocus }: { snapshotId: string; sel: Se
       </p>
       {detail ? (
         <div className={s.stats}>
-          <div className={s.stat}>
+          <div className={`${s.stat} ${s.statIn}`}>
             <strong>{dependencyCount(detail, "in").toLocaleString()}</strong>
             <span>
               used by
               <Help>How many places in this repository call, use, extend or test it.</Help>
             </span>
           </div>
-          <div className={s.stat}>
+          <div className={`${s.stat} ${s.statOut}`}>
             <strong>{dependencyCount(detail, "out").toLocaleString()}</strong>
             <span>uses</span>
           </div>
@@ -309,7 +311,10 @@ export default function MapView({ snapshot, focus, onFocus }: {
           {results.map((n) => (
             <li key={n.id}>
               <button type="button" aria-current={n.id === center} onClick={() => go(n.id)}>
-                <span className={s.resultName}>{shortName(n.qualifiedName)}</span>
+                <span className={s.resultName}>
+                  <span className={`${s.kindDot} ${s[`kind${nodeKind(n.nodeType, n.path)}`]}`} aria-hidden />
+                  {shortName(n.qualifiedName)}
+                </span>
                 <span className={s.resultPkg}>{packageOf(n.qualifiedName)}</span>
               </button>
             </li>
@@ -324,6 +329,11 @@ export default function MapView({ snapshot, focus, onFocus }: {
           <>
             <GraphCanvas subgraph={sub} selectedId={selection?.kind === "node" ? selection.node.id : null} onSelect={(sel, recenter) => (recenter ? go(recenter) : setSelection(sel))} />
             <div className={s.legend}>
+              {(["TYPE", "METHOD", "FIELD", "TEST"] as const).map((k) => (
+                <span key={k}>
+                  <span className={`${s.kindSwatch} ${s[`kind${k}`]}`} /> {k === "TEST" ? "test" : KIND_WORD[k]}
+                </span>
+              ))}
               <span>
                 <span className={s.swatch} /> certain link
               </span>

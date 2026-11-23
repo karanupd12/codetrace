@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { findPaths, type GraphNode, type PathResult, type Snapshot } from "@/lib/api";
-import { EDGE_WORD, fileName, plural, shortName } from "@/lib/words";
+import { EDGE_WORD, fileName, kindOfName, plural, shortName } from "@/lib/words";
 import Icon from "@/components/Icon";
 import { Badge, Banner, Button, EmptyState } from "@/components/ui";
+import { KindChip } from "@/components/viz";
 import NodePicker from "./NodePicker";
 import s from "./explore.module.css";
 
@@ -44,7 +45,7 @@ export default function PathView({ snapshot, onShow }: { snapshot: Snapshot; onS
   const b = answer?.reversed ? from : to;
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 16 }}>
       <div className={s.pathForm}>
         <NodePicker snapshotId={snapshot.id} label="From" value={from} onChange={setFrom} />
         <span style={{ paddingBottom: 8, color: "var(--muted)" }}>
@@ -81,14 +82,19 @@ export default function PathView({ snapshot, onShow }: { snapshot: Snapshot; onS
                   <span>Route {i + 1}</span>
                   {p.certain ? <Badge tone="green">certain</Badge> : <Badge tone="yellow">includes a best guess</Badge>}
                 </div>
-                <ol className={s.steps}>
-                  {p.edges.map((e) => (
-                    <li key={e.id}>
-                      <code>{shortName(e.srcName)}</code> {EDGE_WORD[e.edgeType] ?? e.edgeType.toLowerCase()} <code>{shortName(e.dstName)}</code>{" "}
-                      <span className={s.connWhere}>
-                        · {fileName(e.evidencePath)}:{e.evidenceLine}
-                        {e.resolution !== "RESOLVED" ? " · best guess" : ""}
+                <ol className={s.flow}>
+                  {p.edges.map((e, j) => (
+                    <li key={e.id} className={s.flowStep}>
+                      {j === 0 && <KindChip kind={kindOfName(e.srcName, e.evidencePath)} name={shortName(e.srcName)} title={e.srcName} />}
+                      <span className={`${s.flowArrow} ${e.resolution !== "RESOLVED" ? s.flowGuess : ""}`} title={`${e.evidencePath}:${e.evidenceLine}`}>
+                        <span className={s.flowVerb}>{EDGE_WORD[e.edgeType] ?? e.edgeType.toLowerCase()}</span>
+                        <span className={s.flowLine} aria-hidden />
+                        <span className={s.flowWhere}>
+                          {fileName(e.evidencePath)}:{e.evidenceLine}
+                          {e.resolution !== "RESOLVED" ? " · guess" : ""}
+                        </span>
                       </span>
+                      <KindChip kind={kindOfName(e.dstName, p.edges[j + 1]?.evidencePath)} name={shortName(e.dstName)} title={e.dstName} />
                     </li>
                   ))}
                 </ol>
