@@ -52,7 +52,7 @@ class ImpactJobHandlerTest {
 
     private static ImpactReport report(String status, UUID id, UUID repoId, UUID jobId) {
         return new ImpactReport(id, repoId, "a".repeat(40), "b".repeat(40), UUID.randomUUID(), UUID.randomUUID(), "impact-1", 4,
-                jobId, status, null, null, null, null, null, null, null, null, null, null, null, null, null);
+                jobId, status, null, null, null, null, null, null, null, null, null, null, null, null, null, "[]");
     }
 
     @BeforeEach
@@ -92,7 +92,7 @@ class ImpactJobHandlerTest {
     @Test
     void successStoresTheScoredAnalysis() {
         ChangeSet cs = new ChangeSet("a", "b", List.of());
-        ImpactAnalysis analysis = new ImpactAnalysis("impact-1", 4, List.of(), List.of(), List.of(), List.of(), 0, 0, false);
+        ImpactAnalysis analysis = new ImpactAnalysis("impact-1", 4, List.of(), List.of(), List.of(), List.of(), 0, 0, false, List.of());
         RiskAssessment risk = new RiskAssessment(0, Level.LOW, List.of());
         when(detector.detect(eq(gitRepo), anyString(), anyString())).thenReturn(cs);
         when(analyzer.analyze(any(), any(), eq(cs), anyInt())).thenReturn(analysis);

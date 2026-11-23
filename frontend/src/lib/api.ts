@@ -290,6 +290,8 @@ export type ImpactReport = {
   failureReason: string | null;
   createdAt: string;
   completedAt: string | null;
+  /** Plain-language notes the analysis left for the reader. */
+  notes: string[];
 };
 
 export type Hop = {

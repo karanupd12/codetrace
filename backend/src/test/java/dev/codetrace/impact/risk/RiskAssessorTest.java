@@ -44,7 +44,7 @@ class RiskAssessorTest {
     private static ImpactAnalysis analysis(List<ChangedEntry> changed, List<AffectedSymbol> affected, int possible, boolean truncated) {
         List<PossibleDependent> p = IntStream.range(0, possible)
                 .mapToObj(i -> new PossibleDependent(UUID.randomUUID(), "p.Y#c" + i, MAIN, 1, "p.A#a")).toList();
-        return new ImpactAnalysis("impact-1", 4, changed, affected, p, List.of(), 0, 0, truncated);
+        return new ImpactAnalysis("impact-1", 4, changed, affected, p, List.of(), 0, 0, truncated, List.of());
     }
 
     private static List<AffectedSymbol> many(int n, String path) {
@@ -104,12 +104,12 @@ class RiskAssessorTest {
         BreakingApiSignal s = new BreakingApiSignal();
 
         RiskFactor f = s.evaluate(new ImpactAnalysis("impact-4", 4, List.of(), List.of(), List.of(), List.of(gone, added),
-                0, 0, false));
+                0, 0, false, List.of()));
 
         assertThat(f.points()).isEqualTo(20);
         assertThat(f.reason()).contains("1 HTTP endpoint(s) removed").contains("DELETE /orders/{id}");
         assertThat(points(s, new ImpactAnalysis("impact-4", 4, List.of(), List.of(), List.of(), List.of(added), 0, 0,
-                false))).isZero();
+                false, List.of()))).isZero();
     }
 
     @Test

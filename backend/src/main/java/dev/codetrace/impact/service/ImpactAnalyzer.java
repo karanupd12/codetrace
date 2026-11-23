@@ -48,8 +48,8 @@ import org.springframework.stereotype.Component;
 public class ImpactAnalyzer {
     // 2: edits to comments and whitespace no longer mark symbols as changed; 3: test classes named after changed code;
     // 4: HTTP endpoints added, removed, modified or affected; 5: callers of overridden supertype methods (uncertain);
-    // 6: only abstract and interface methods are followed to their callers
-    public static final String ALGORITHM_VERSION = "impact-6";
+    // 6: only abstract and interface methods are followed to their callers; 7: not when widely implemented (noted)
+    public static final String ALGORITHM_VERSION = "impact-7";
     private static final int MAX_POSSIBLE = 200;
 
     private final ChangedSymbolMapper mapper;
@@ -87,10 +87,13 @@ public class ImpactAnalyzer {
         }
 
         int edgeCap = limits.maxAffected() * 10;
+        Map<String, Integer> notFollowed = new java.util.TreeMap<>();
         Result radius = calculator.calculateLevels(new LinkedHashSet<>(seeds.keySet()), depth, limits.maxAffected(),
                 frontier -> {
                     List<EdgeView> direct = graph.dependentsOf(baseSnapshot, frontier, edgeCap);
-                    List<EdgeView> dispatch = graph.dispatchDependentsOf(baseSnapshot, frontier, edgeCap);
+                    List<EdgeView> dispatch = graph.dispatchDependentsOf(baseSnapshot, frontier,
+                            limits.maxDispatchImplementations(), edgeCap);
+                    notFollowed.putAll(graph.widelyImplemented(baseSnapshot, frontier, limits.maxDispatchImplementations()));
                     List<EdgeView> edges = new ArrayList<>(direct);
                     edges.addAll(dispatch);
                     edges.sort(Comparator.comparingLong(EdgeView::id));
@@ -114,7 +117,17 @@ public class ImpactAnalyzer {
                 changedHandlers, affected);
 
         return new ImpactAnalysis(ALGORITHM_VERSION, depth, changed, List.copyOf(affected), possible, endpoints,
-                mapping.unmappedHunks(), changes.nonJavaFileCount(), truncated);
+                mapping.unmappedHunks(), changes.nonJavaFileCount(), truncated, dispatchNotes(notFollowed));
+    }
+
+    /** One plain sentence per widely implemented method whose callers were not followed. */
+    static List<String> dispatchNotes(Map<String, Integer> notFollowed) {
+        List<String> out = new ArrayList<>();
+        notFollowed.forEach((method, implementations) -> out.add("Callers of " + method + " were not followed: "
+                + "the changed code implements it, but so do " + (implementations - 1) + " other class"
+                + (implementations == 2 ? "" : "es") + ", so a call to it rarely runs the changed code. Check its callers "
+                + "by hand if the change alters behaviour they rely on."));
+        return List.copyOf(out);
     }
 
     /** The endpoints found by the index job a snapshot was built from; none if that job no longer exists. */

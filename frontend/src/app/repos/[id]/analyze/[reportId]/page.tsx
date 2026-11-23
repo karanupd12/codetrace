@@ -288,6 +288,11 @@ function Summary({ report, before, after }: { report: ImpactReport; before: stri
           </p>
         </Details>
       </div>
+      {report.notes?.map((note) => (
+        <Banner key={note} tone="yellow" title="Not checked automatically">
+          {note}
+        </Banner>
+      ))}
       {report.truncated && (
         <Banner tone="yellow" title="This is a lower bound">
           The analysis stopped at a size limit, so more code may be affected than is listed.

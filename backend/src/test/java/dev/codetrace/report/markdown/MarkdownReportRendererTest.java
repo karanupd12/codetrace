@@ -35,7 +35,7 @@ class MarkdownReportRendererTest {
         return new ImpactReport(ID, UUID.randomUUID(), BASE, HEAD, UUID.fromString("00000000-0000-0000-0000-0000000000b1"),
                 UUID.fromString("00000000-0000-0000-0000-0000000000b2"), "impact-1", 4, UUID.randomUUID(), "COMPLETED",
                 score, level, "[]", 1, 2, 1, 0, unmapped, nonJava, truncated, null,
-                OffsetDateTime.parse("2026-11-21T10:15:30Z"), OffsetDateTime.parse("2026-11-21T10:16:00+05:30"));
+                OffsetDateTime.parse("2026-11-21T10:15:30Z"), OffsetDateTime.parse("2026-11-21T10:16:00+05:30"), "[]");
     }
 
     private static Finding changed(String name, String kind, int dependents) {
@@ -54,7 +54,7 @@ class MarkdownReportRendererTest {
     }
 
     private ReportData data(ImpactReport r, List<Finding> changed, List<Finding> affected, List<Finding> possible) {
-        return new ReportData(r, "shop", factors(), changed, affected, possible, List.of());
+        return new ReportData(r, "shop", factors(), changed, affected, possible, List.of(), List.of());
     }
 
     private static List<Hop> chain() {
@@ -119,12 +119,20 @@ class MarkdownReportRendererTest {
         Finding affected = new Finding("ENDPOINT", 1, "GET /orders", "ENDPOINT", "web/src/main/java/p/C.java", 12, "web",
                 false, null, null, 2, false, 0.45, "p.C#list()", chain());
         String md = renderer.render(new ReportData(report(35, "MEDIUM", false, 0, 0), "shop", factors(), List.of(),
-                List.of(), List.of(), List.of(removed, affected)));
+                List.of(), List.of(), List.of(removed, affected), List.of()));
 
         assertThat(md).contains("## HTTP endpoints (2)")
                 .contains("| REMOVED | `DELETE /orders/{id}` | `p.C#delete(long)` | `web/src/main/java/p/C.java:20` |")
                 .contains("| AFFECTED (distance 2, uncertain) | `GET /orders` | `p.C#list()` |");
         assertThat(md.indexOf("## HTTP endpoints")).isGreaterThan(md.indexOf("## Summary"));
+    }
+
+    @Test
+    void notesOfTheAnalysisAreListedWithTheLimits() {
+        String md = renderer.render(new ReportData(report(20, "LOW", false, 0, 0), "shop", factors(), List.of(), List.of(),
+                List.of(), List.of(), List.of("Callers of p.Shape#area() were not followed: so do 11 other classes.")));
+
+        assertThat(md).contains("- Callers of p.Shape#area() were not followed: so do 11 other classes.");
     }
 
     @Test

@@ -25,8 +25,11 @@ public class LimitationsSection implements ReportSection {
         sb.append("- **Risk levels:** LOW below 25, MEDIUM 25–49, HIGH 50–74, CRITICAL 75 and above. The score ranks changes for review; it does not predict defects.\n");
         sb.append("- **Dependents come from the base revision's graph**, because that is the code that relied on the old behaviour. Symbols added by the change have no dependents yet.\n");
         sb.append("- **Only Java source is analysed.** Other files, configuration, reflection, dependency injection wiring and calls made through dynamically typed values are invisible to the graph.\n");
-        sb.append("- **Overrides are not linked:** changing an implementation does not mark callers of the interface method it implements.\n");
+        sb.append("- **Implementations reach their interface's callers only when that method has few implementations;** such links are marked uncertain, because a call may run another implementation.\n");
         sb.append("- **Resolution is conservative.** Links the analysis cannot prove are ambiguous or unresolved and are reported as such, never guessed.\n");
+        for (String note : d.notes()) {
+            sb.append("- ").append(dev.codetrace.report.markdown.MarkdownText.plain(note)).append('\n');
+        }
         if (Boolean.TRUE.equals(r.truncated())) {
             sb.append("- **This analysis reached a configured limit**, so the affected set is a lower bound. Narrow the change or lower the depth.\n");
         }

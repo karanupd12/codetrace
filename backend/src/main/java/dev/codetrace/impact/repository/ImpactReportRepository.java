@@ -21,7 +21,7 @@ public class ImpactReportRepository {
             id, repository_id, base_commit, head_commit, base_snapshot_id, head_snapshot_id, algorithm_version, depth, job_id,
             status, risk_score, risk_level, risk_factors::text as risk_factors, changed_count, affected_count,
             tests_affected_count, possible_count, unmapped_hunks, non_java_files, truncated, failure_reason, created_at,
-            completed_at""";
+            completed_at, notes::text as notes""";
 
     private final JdbcClient jdbc;
 
@@ -89,7 +89,7 @@ public class ImpactReportRepository {
                 (Integer) rs.getObject("possible_count"), (Integer) rs.getObject("unmapped_hunks"),
                 (Integer) rs.getObject("non_java_files"), (Boolean) rs.getObject("truncated"),
                 rs.getString("failure_reason"), rs.getObject("created_at", OffsetDateTime.class),
-                rs.getObject("completed_at", OffsetDateTime.class));
+                rs.getObject("completed_at", OffsetDateTime.class), rs.getString("notes"));
     }
 
     /**

@@ -140,7 +140,8 @@ public class GraphQueryRepository {
      * OVERRIDES edges from the given methods to supertype methods without a body of their own: abstract methods and
      * interface methods other than default and static ones. A call to such a method always runs some override.
      */
-    public List<EdgeView> overridesOfBodilessMethods(UUID snapshotId, Collection<UUID> ids, int limit) {
+    public List<EdgeView> overridesOfBodilessMethods(UUID snapshotId, Collection<UUID> ids, int maxImplementations,
+                                                     int limit) {
         if (ids.isEmpty() || limit <= 0) return List.of();
         String where = """
                  where e.snapshot_id = :s and e.src_node_id in (:ids) and e.edge_type = 'OVERRIDES' and e.dst_node_id is not null
@@ -148,14 +149,40 @@ public class GraphQueryRepository {
                         or (d.modifiers !~ '\\m(default|static)\\M'
                             and exists (select 1 from code_node t where t.snapshot_id = d.snapshot_id and t.node_type = 'TYPE'
                                           and t.path = d.path and t.qualified_name = split_part(d.qualified_name, '#', 1)
-                                          and t.subtype = 'INTERFACE')))""";
+                                          and t.subtype = 'INTERFACE'))) and (select count(*) from dependency_edge o where o.snapshot_id = e.snapshot_id
+                                and o.dst_node_id = e.dst_node_id and o.edge_type = 'OVERRIDES') <= :max""";
         List<EdgeView> out = new ArrayList<>();
         for (List<UUID> chunk : Batches.partition(ids)) {
             int remaining = limit - out.size();
             if (remaining <= 0) break;
             out.addAll(jdbc.sql(EDGE_SELECT + "\n" + where + " order by e.id limit :lim")
                     .param("s", snapshotId).param("ids", chunk).param("lim", remaining)
-                    .query(GraphQueryRepository::edge).list());
+                    .param("max", maxImplementations).query(GraphQueryRepository::edge).list());
+        }
+        return out;
+    }
+
+    /**
+     * The bodiless supertype methods the given methods implement that have more than {@code maxImplementations}
+     * implementations in the snapshot, with that count: the ones a dispatch walk leaves out.
+     */
+    public Map<String, Integer> widelyImplemented(UUID snapshotId, Collection<UUID> ids, int maxImplementations) {
+        Map<String, Integer> out = new java.util.TreeMap<>();
+        for (List<UUID> chunk : Batches.partition(ids)) {
+            jdbc.sql("""
+                    select d.qualified_name, (select count(*) from dependency_edge o where o.snapshot_id = d.snapshot_id
+                                                and o.dst_node_id = d.id and o.edge_type = 'OVERRIDES') as n
+                      from dependency_edge e join code_node d on d.snapshot_id = e.snapshot_id and d.id = e.dst_node_id
+                     where e.snapshot_id = :s and e.src_node_id in (:ids) and e.edge_type = 'OVERRIDES'
+                       and (d.modifiers ~ '\\mabstract\\M'
+                            or (d.modifiers !~ '\\m(default|static)\\M'
+                                and exists (select 1 from code_node t where t.snapshot_id = d.snapshot_id and t.node_type = 'TYPE'
+                                              and t.path = d.path and t.qualified_name = split_part(d.qualified_name, '#', 1)
+                                              and t.subtype = 'INTERFACE')))""")
+                    .param("s", snapshotId).param("ids", chunk)
+                    .query((rs, i) -> Map.entry(rs.getString("qualified_name"), rs.getInt("n"))).list().stream()
+                    .filter(en -> en.getValue() > maxImplementations)
+                    .forEach(en -> out.put(en.getKey(), en.getValue()));
         }
         return out;
     }

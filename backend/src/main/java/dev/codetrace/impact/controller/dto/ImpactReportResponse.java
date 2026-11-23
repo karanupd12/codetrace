@@ -12,11 +12,12 @@ public record ImpactReportResponse(UUID id, UUID repositoryId, String baseCommit
                                    Integer riskScore, String riskLevel, List<RiskFactor> riskFactors,
                                    Integer changedCount, Integer affectedCount, Integer testsAffectedCount,
                                    Integer possibleCount, Integer unmappedHunks, Integer nonJavaFiles, Boolean truncated,
-                                   String failureReason, OffsetDateTime createdAt, OffsetDateTime completedAt) {
-    public static ImpactReportResponse from(ImpactReport r, List<RiskFactor> riskFactors) {
+                                   String failureReason, OffsetDateTime createdAt, OffsetDateTime completedAt,
+                                   List<String> notes) {
+    public static ImpactReportResponse from(ImpactReport r, List<RiskFactor> riskFactors, List<String> notes) {
         return new ImpactReportResponse(r.id(), r.repositoryId(), r.baseCommit(), r.headCommit(), r.baseSnapshotId(),
                 r.headSnapshotId(), r.algorithmVersion(), r.depth(), r.jobId(), r.status(), r.riskScore(), r.riskLevel(), riskFactors,
                 r.changedCount(), r.affectedCount(), r.testsAffectedCount(), r.possibleCount(), r.unmappedHunks(),
-                r.nonJavaFiles(), r.truncated(), r.failureReason(), r.createdAt(), r.completedAt());
+                r.nonJavaFiles(), r.truncated(), r.failureReason(), r.createdAt(), r.completedAt(), notes);
     }
 }

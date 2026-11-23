@@ -125,6 +125,14 @@ public class ImpactReportService {
         return json.read(r.riskFactorsJson(), RISK_FACTORS, List.of());
     }
 
+    /** The plain-language notes the analysis left for the reader. */
+    public List<String> notes(ImpactReport r) {
+        return json.read(r.notesJson(), NOTES, List.of());
+    }
+
+    private static final com.fasterxml.jackson.core.type.TypeReference<List<String>> NOTES = new com.fasterxml.jackson.core.type.TypeReference<>() {
+    };
+
     private Snapshot publishedSnapshot(SourceRepository repo, String commit, String side) {
         return snapshots.latestPublished(repo.id(), commit).orElseThrow(() -> ApiException.conflict(
                 "Build the dependency graph for revision " + Commits.shortHash(commit) + " (" + side + ") first."));

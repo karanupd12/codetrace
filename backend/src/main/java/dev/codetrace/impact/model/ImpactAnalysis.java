@@ -11,7 +11,7 @@ import java.util.UUID;
  */
 public record ImpactAnalysis(String algorithmVersion, int depth, List<ChangedEntry> changed, List<AffectedSymbol> affected,
                              List<PossibleDependent> possible, List<EndpointImpact> endpoints, int unmappedHunks,
-                             int nonJavaFiles, boolean truncated) {
+                             int nonJavaFiles, boolean truncated, List<String> notes) {
 
     /** A symbol that changed. {@code base} is null when added, {@code head} is null when removed. */
     public record ChangedEntry(Kind kind, SymbolRef base, SymbolRef head, int directDependents) {

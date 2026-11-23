@@ -270,10 +270,21 @@ class ImpactIT {
             withGateway.put("web/src/main/java/shopweb/Payments.java", Entry.file(PAYMENTS));
             withGateway.put("core/src/main/java/shop/BaseFee.java", Entry.file(BASE_FEE));
             withGateway.put("core/src/main/java/shop/CardFee.java", Entry.file(CARD_FEE));
+            // a widely implemented interface: its callers are not followed, and the report says so
+            withGateway.put("core/src/main/java/shop/Discount.java", Entry.file("package shop;\npublic interface Discount {\n    double apply(double amount);\n}\n"));
+            for (int i = 1; i <= 6; i++) {
+                withGateway.put("core/src/main/java/shop/Discount" + i + ".java", Entry.file("package shop;\npublic class Discount" + i
+                        + " implements Discount {\n    public double apply(double amount) {\n        return amount;\n    }\n}\n"));
+            }
+            withGateway.put("web/src/main/java/shopweb/Basket.java", Entry.file("package shopweb;\nimport shop.Discount;\nimport shop.Discount1;\n"
+                    + "public class Basket {\n    private final Discount discount = new Discount1();\n    public double total(double amount) {\n"
+                    + "        return discount.apply(amount);\n    }\n}\n"));
             commits.add(GitFixtures.commit(repo, withGateway, commits.get(5), "payments"));
             Map<String, Entry> feeChanged = new LinkedHashMap<>(withGateway);
             feeChanged.put("core/src/main/java/shop/CardGateway.java", Entry.file(CARD_GATEWAY.replace("return amount;", "return amount * 1.02;")));
             feeChanged.put("core/src/main/java/shop/CardFee.java", Entry.file(CARD_FEE.replace("return 1.0;", "return 1.5;")));
+            feeChanged.put("core/src/main/java/shop/Discount3.java", Entry.file("package shop;\npublic class Discount3 implements Discount {\n"
+                    + "    public double apply(double amount) {\n        return amount * 0.9;\n    }\n}\n"));
             commits.add(GitFixtures.commit(repo, feeChanged, commits.get(6), "card fee"));
         }
     }
@@ -763,7 +774,12 @@ class ImpactIT {
 
         ImpactAnalysis a = analyze(6, 7);
 
-        assertThat(kinds(a.changed())).isEqualTo("MODIFIED shop.CardFee#fee(double); MODIFIED shop.CardGateway#charge(double)");
+        assertThat(kinds(a.changed())).isEqualTo(
+                "MODIFIED shop.CardFee#fee(double); MODIFIED shop.CardGateway#charge(double); MODIFIED shop.Discount3#apply(double)");
+        // Discount#apply has six implementations: its caller Basket#total is not followed, and a note says so
+        assertThat(a.notes()).singleElement().asString()
+                .startsWith("Callers of shop.Discount#apply(double) were not followed")
+                .contains("so do 5 other classes");
         // callers of the interface method are reached; callers of the concrete BaseFee#fee are not
         Set<String> labelled = Set.of("shop.Gateway#charge(double)", "shopweb.Payments#settle(double)");
         report("override-dispatch", names(a.affected()), labelled);

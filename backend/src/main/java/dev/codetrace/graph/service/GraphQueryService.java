@@ -96,12 +96,17 @@ public class GraphQueryService {
      * callers depend on it too. Overrides of methods with their own body are not followed: their callers most likely run
      * that body.
      */
-    public List<EdgeView> dispatchDependentsOf(UUID snapshot, Collection<UUID> methods, int limit) {
-        return dao.overridesOfBodilessMethods(snapshot, methods, limit).stream()
+    public List<EdgeView> dispatchDependentsOf(UUID snapshot, Collection<UUID> methods, int maxImplementations, int limit) {
+        return dao.overridesOfBodilessMethods(snapshot, methods, maxImplementations, limit).stream()
                 .map(e -> new EdgeView(e.id(), e.dstId(), e.dstName(), e.srcId(), e.srcName(), OVERRIDDEN_BY, e.resolution(),
                         e.confidence(), e.evidenceKind(), e.reason(), e.alternativeGroup(), e.evidencePath(),
                         e.evidenceLine(), e.occurrences(), e.extractionMethod(), e.resolverVersion()))
                 .toList();
+    }
+
+    /** Bodiless supertype methods of the given methods with more than {@code maxImplementations} implementations. */
+    public Map<String, Integer> widelyImplemented(UUID snapshot, Collection<UUID> methods, int maxImplementations) {
+        return dao.widelyImplemented(snapshot, methods, maxImplementations);
     }
 
     /** CONTAINS edges into the given nodes: the type or file that declares each of them. */

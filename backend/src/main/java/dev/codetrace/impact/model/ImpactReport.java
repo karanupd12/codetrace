@@ -9,7 +9,7 @@ public record ImpactReport(UUID id, UUID repositoryId, String baseCommit, String
                            Integer riskScore, String riskLevel, String riskFactorsJson, Integer changedCount,
                            Integer affectedCount, Integer testsAffectedCount, Integer possibleCount,
                            Integer unmappedHunks, Integer nonJavaFiles, Boolean truncated, String failureReason,
-                           OffsetDateTime createdAt, OffsetDateTime completedAt) {
+                           OffsetDateTime createdAt, OffsetDateTime completedAt, String notesJson) {
     public boolean completed() {
         return "COMPLETED".equals(status);
     }

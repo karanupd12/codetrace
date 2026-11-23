@@ -37,7 +37,7 @@ public class ReportDocumentService {
         ReportData data = new ReportData(report,
                 repositories.find(report.repositoryId()).map(SourceRepository::displayName).orElse("repository"),
                 impact.riskFactors(report), ofType(all, "CHANGED"), ofType(all, "AFFECTED"), ofType(all, "POSSIBLE"),
-                ofType(all, "ENDPOINT"));
+                ofType(all, "ENDPOINT"), impact.notes(report));
         String filename = "impact-" + Commits.shortHash(report.baseCommit()) + "-" + Commits.shortHash(report.headCommit()) + ".md";
         return new Document(filename, renderer.render(data));
     }

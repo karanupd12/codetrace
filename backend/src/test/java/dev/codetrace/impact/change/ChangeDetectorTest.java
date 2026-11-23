@@ -36,7 +36,7 @@ class ChangeDetectorTest {
     }
 
     private ChangeDetector detector(int maxFiles, int maxHunks) {
-        return new ChangeDetector(new ImpactProperties(maxFiles, maxHunks, 4, 8, 5000),
+        return new ChangeDetector(new ImpactProperties(maxFiles, maxHunks, 4, 8, 5000, 5),
                 GitFixtures.props(tmp.resolve("ws"), List.of()));
     }
 
@@ -184,7 +184,7 @@ class ChangeDetectorTest {
         String base = GitFixtures.createRepo(tmp, files("Big.java", lines(2000, "padding padding padding ")));
         try (Repository repo = open()) {
             String head = GitFixtures.commit(repo, files("Big.java", lines(2000, "padding padding padding ") + "tail\n"), base, "grow");
-            ChangeDetector small = new ChangeDetector(new ImpactProperties(100, 100, 4, 8, 5000),
+            ChangeDetector small = new ChangeDetector(new ImpactProperties(100, 100, 4, 8, 5000, 5),
                     GitFixtures.limited(5000, 1024, 1L << 20, 1000)); // 1 KiB per-file limit
 
             assertThat(only(small.detect(repo, base, head), "Big.java").binary()).isTrue();

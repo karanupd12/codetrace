@@ -59,6 +59,6 @@ public class ImpactReportController {
     }
 
     private ImpactReportResponse response(ImpactReport r) {
-        return ImpactReportResponse.from(r, service.riskFactors(r));
+        return ImpactReportResponse.from(r, service.riskFactors(r), service.notes(r));
     }
 }

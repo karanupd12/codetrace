@@ -14,5 +14,11 @@ public record ImpactProperties(
         @DefaultValue("4") int defaultDepth,
         @DefaultValue("8") int maxDepth,
         /** A traversal stops (and says so) after reaching this many affected symbols. */
-        @DefaultValue("5000") int maxAffected) {
+        @DefaultValue("5000") int maxAffected,
+        /**
+         * A changed implementation reaches the callers of the abstract or interface method it implements only when that
+         * method has at most this many implementations; calls to a more widely implemented method rarely run the
+         * changed one, and are named in the report's notes instead.
+         */
+        @DefaultValue("5") int maxDispatchImplementations) {
 }

@@ -79,10 +79,10 @@ public class ImpactReportWriteRepository {
                 update impact_report set status = 'COMPLETED', completed_at = now(), failure_reason = null,
                        risk_score = ?, risk_level = ?, risk_factors = cast(? as jsonb), changed_count = ?,
                        affected_count = ?, tests_affected_count = ?, possible_count = ?, unmapped_hunks = ?,
-                       non_java_files = ?, truncated = ?
+                       non_java_files = ?, truncated = ?, notes = cast(? as jsonb)
                  where id = ? and status in ('REQUESTED', 'RUNNING')""",
                 risk.score(), risk.level().name(), json.write(risk.factors()), a.changed().size(), a.affected().size(),
-                a.testsAffected(), a.possible().size(), a.unmappedHunks(), a.nonJavaFiles(), a.truncated(), reportId);
+                a.testsAffected(), a.possible().size(), a.unmappedHunks(), a.nonJavaFiles(), a.truncated(), json.write(a.notes()), reportId);
         if (done != 1) {
             throw new IllegalStateException("Report is not in a state that can be completed.");
         }
