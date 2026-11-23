@@ -47,8 +47,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class ImpactAnalyzer {
     // 2: edits to comments and whitespace no longer mark symbols as changed; 3: test classes named after changed code;
-    // 4: HTTP endpoints added, removed, modified or affected; 5: callers of overridden supertype methods (uncertain)
-    public static final String ALGORITHM_VERSION = "impact-5";
+    // 4: HTTP endpoints added, removed, modified or affected; 5: callers of overridden supertype methods (uncertain);
+    // 6: only abstract and interface methods are followed to their callers
+    public static final String ALGORITHM_VERSION = "impact-6";
     private static final int MAX_POSSIBLE = 200;
 
     private final ChangedSymbolMapper mapper;

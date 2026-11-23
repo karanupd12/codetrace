@@ -136,6 +136,30 @@ public class GraphQueryRepository {
         return out;
     }
 
+    /**
+     * OVERRIDES edges from the given methods to supertype methods without a body of their own: abstract methods and
+     * interface methods other than default and static ones. A call to such a method always runs some override.
+     */
+    public List<EdgeView> overridesOfBodilessMethods(UUID snapshotId, Collection<UUID> ids, int limit) {
+        if (ids.isEmpty() || limit <= 0) return List.of();
+        String where = """
+                 where e.snapshot_id = :s and e.src_node_id in (:ids) and e.edge_type = 'OVERRIDES' and e.dst_node_id is not null
+                   and (d.modifiers ~ '\\mabstract\\M'
+                        or (d.modifiers !~ '\\m(default|static)\\M'
+                            and exists (select 1 from code_node t where t.snapshot_id = d.snapshot_id and t.node_type = 'TYPE'
+                                          and t.path = d.path and t.qualified_name = split_part(d.qualified_name, '#', 1)
+                                          and t.subtype = 'INTERFACE')))""";
+        List<EdgeView> out = new ArrayList<>();
+        for (List<UUID> chunk : Batches.partition(ids)) {
+            int remaining = limit - out.size();
+            if (remaining <= 0) break;
+            out.addAll(jdbc.sql(EDGE_SELECT + "\n" + where + " order by e.id limit :lim")
+                    .param("s", snapshotId).param("ids", chunk).param("lim", remaining)
+                    .query(GraphQueryRepository::edge).list());
+        }
+        return out;
+    }
+
     // ---- helpers ----------------------------------------------------------------------------------------------------
 
     // ---- declarations and dependents (used by impact analysis) ------------------------------------------------------

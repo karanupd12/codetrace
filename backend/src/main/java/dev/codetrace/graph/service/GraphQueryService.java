@@ -91,11 +91,13 @@ public class GraphQueryService {
     public static final String OVERRIDDEN_BY = "OVERRIDDEN_BY";
 
     /**
-     * For each given method, the supertype methods it overrides, as reversed edges ({@code inherited OVERRIDDEN_BY
-     * method}): a call to the inherited method may dispatch to the given one, so its callers depend on it too.
+     * For each given method, the abstract or interface methods it implements, as reversed edges ({@code inherited
+     * OVERRIDDEN_BY method}): a call to such a method has to run an implementation and may run the given one, so its
+     * callers depend on it too. Overrides of methods with their own body are not followed: their callers most likely run
+     * that body.
      */
     public List<EdgeView> dispatchDependentsOf(UUID snapshot, Collection<UUID> methods, int limit) {
-        return dao.touching(snapshot, methods, Direction.OUT, Set.of("OVERRIDES"), TRAVERSABLE_STATES, true, limit).stream()
+        return dao.overridesOfBodilessMethods(snapshot, methods, limit).stream()
                 .map(e -> new EdgeView(e.id(), e.dstId(), e.dstName(), e.srcId(), e.srcName(), OVERRIDDEN_BY, e.resolution(),
                         e.confidence(), e.evidenceKind(), e.reason(), e.alternativeGroup(), e.evidencePath(),
                         e.evidenceLine(), e.occurrences(), e.extractionMethod(), e.resolverVersion()))

@@ -177,18 +177,44 @@ class ImpactIT {
                 }
             }
             """;
+    /** A concrete base method: its callers most likely run its own body, so a subclass override is not followed. */
+    private static final String BASE_FEE = """
+            package shop;
+
+            public class BaseFee {
+                public double fee(double amount) {
+                    return 0.0;
+                }
+            }
+            """;
+    private static final String CARD_FEE = """
+            package shop;
+
+            public class CardFee extends BaseFee {
+                @Override
+                public double fee(double amount) {
+                    return 1.0;
+                }
+            }
+            """;
     /** Calls the gateway through the interface: only override linking connects it to CardGateway. */
     private static final String PAYMENTS = """
             package shopweb;
 
+            import shop.BaseFee;
             import shop.CardGateway;
             import shop.Gateway;
 
             public class Payments {
                 private final Gateway gateway = new CardGateway();
+                private final BaseFee fees = new BaseFee();
 
                 public double settle(double amount) {
                     return gateway.charge(amount);
+                }
+
+                public double fee(double amount) {
+                    return fees.fee(amount);
                 }
             }
             """;
@@ -242,9 +268,12 @@ class ImpactIT {
             withGateway.put("core/src/main/java/shop/Gateway.java", Entry.file(GATEWAY));
             withGateway.put("core/src/main/java/shop/CardGateway.java", Entry.file(CARD_GATEWAY));
             withGateway.put("web/src/main/java/shopweb/Payments.java", Entry.file(PAYMENTS));
+            withGateway.put("core/src/main/java/shop/BaseFee.java", Entry.file(BASE_FEE));
+            withGateway.put("core/src/main/java/shop/CardFee.java", Entry.file(CARD_FEE));
             commits.add(GitFixtures.commit(repo, withGateway, commits.get(5), "payments"));
             Map<String, Entry> feeChanged = new LinkedHashMap<>(withGateway);
             feeChanged.put("core/src/main/java/shop/CardGateway.java", Entry.file(CARD_GATEWAY.replace("return amount;", "return amount * 1.02;")));
+            feeChanged.put("core/src/main/java/shop/CardFee.java", Entry.file(CARD_FEE.replace("return 1.0;", "return 1.5;")));
             commits.add(GitFixtures.commit(repo, feeChanged, commits.get(6), "card fee"));
         }
     }
@@ -734,7 +763,8 @@ class ImpactIT {
 
         ImpactAnalysis a = analyze(6, 7);
 
-        assertThat(kinds(a.changed())).isEqualTo("MODIFIED shop.CardGateway#charge(double)");
+        assertThat(kinds(a.changed())).isEqualTo("MODIFIED shop.CardFee#fee(double); MODIFIED shop.CardGateway#charge(double)");
+        // callers of the interface method are reached; callers of the concrete BaseFee#fee are not
         Set<String> labelled = Set.of("shop.Gateway#charge(double)", "shopweb.Payments#settle(double)");
         report("override-dispatch", names(a.affected()), labelled);
         AffectedSymbol caller = a.affected().stream().filter(x -> x.qualifiedName().equals("shopweb.Payments#settle(double)"))
