@@ -2,9 +2,9 @@
 
 # CODETRACE
 
-### Know what a code change touches before you merge it.
+### Know what a code change could break before you merge it.
 
-Connect a Git repository, and CODETRACE turns its source into an **evidence-backed dependency graph** you can search, filter and follow, with a clear record of *why* every connection exists and *how sure* the tool is about it.
+Connect a Git repository, pick the version before and after a change, and CODETRACE tells you **what changed, what depends on it and which tests to run**, with the file and line behind every claim and an honest note wherever it is not sure.
 
 [![CI](https://github.com/karanupd12/codetrace/actions/workflows/ci.yml/badge.svg)](https://github.com/karanupd12/codetrace/actions/workflows/ci.yml)
 ![Java 21](https://img.shields.io/badge/Java-21-orange)
@@ -13,7 +13,7 @@ Connect a Git repository, and CODETRACE turns its source into an **evidence-back
 ![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-336791)
 ![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED)
 
-[Why CODETRACE](#why-codetrace) · [Features](#features) · [Quick start](#quick-start) · [How it works](#how-it-works) · [Performance](#performance) · [Contributing](#contributing)
+[Why CODETRACE](#why-codetrace) · [Features](#features) · [Quick start](#quick-start) · [Using it](#using-codetrace) · [How it works](#how-it-works) · [Performance](#performance) · [Contributing](#contributing)
 
 </div>
 
@@ -25,30 +25,51 @@ Reviewing a change usually means guessing what else it might break. Text search 
 
 CODETRACE takes the opposite approach:
 
-- **Evidence, not guesses.** Every dependency points to the file and line that justify it.
-- **Uncertainty is visible.** If several targets are plausible, or the target lives outside the repository, the link says so instead of picking one silently.
-- **Reproducible.** Results are tied to one exact commit and never change after they are published.
+- **Evidence, not guesses.** Every dependency points to the file and line that justify it, and every affected symbol shows the chain of calls that links it to the change.
+- **Uncertainty is visible.** When several targets are plausible, or a call may run a different implementation, the result is marked *possibly* instead of being silently counted or dropped. What it deliberately does not follow is written down in the report.
+- **Reproducible.** Results are tied to exact commits and never change after they are published.
 - **Safe on untrusted code.** Repositories are read and parsed as text. Nothing is ever built or executed.
 
 ---
 
 ## Features
 
+**For people reviewing changes**
+
 | | |
 |---|---|
-| **Change impact analysis** | Pick a *base* and a *head* revision. CODETRACE finds the symbols that were added, modified or removed, then walks the dependency graph backwards to list everything that depends on them, including the **tests to run**, each with the chain of evidence that links it to the change. |
-| **Explainable risk score** | A 0–100 score and level (LOW, MEDIUM, HIGH, CRITICAL) built from independent signals: change breadth, blast radius, breaking API changes, module spread, uncertainty, missing tests and truncation. Every point comes with a one-line reason. |
-| **Markdown impact report** | A downloadable report that names the exact revisions, graph snapshots and algorithm version, so anyone can reproduce it. |
-| **Connect anything public** | A GitHub, GitLab or Bitbucket HTTPS link, or a Git repository on disk. |
-| **Pinned to a commit** | Pick any recent revision; the analysis belongs to that exact commit. |
-| **Java code model** | Classes, interfaces, enums, records, annotations, nested types, methods and constructors (overloads kept distinct), fields and imports. |
-| **Dependency graph** | `CALLS`, `REFERENCES`, `EXTENDS`, `IMPLEMENTS`, `IMPORTS` and `CONTAINS` links between packages, files, types, methods and fields. |
-| **Resolution states** | Each link is `RESOLVED` (one provable target), `AMBIGUOUS` (several candidates, all kept and linked as alternatives) or `UNRESOLVED` (outside the repository, with a reason code). |
-| **Provenance on every link** | Source file and line, number of occurrences, confidence score, and the extractor and resolver versions that produced it. |
-| **Immutable snapshots** | A graph is validated, then published in a single atomic step. Readers never see a half-built graph, and published graphs cannot be modified. |
-| **Interactive explorer** | Search a symbol, expand its neighbourhood, filter by link type and state, re-centre with a double-click, and click a link to read its evidence. |
-| **Bounded queries** | Neighbourhoods, and every shortest path between two symbols, with hard limits and a `truncated` flag so you always know when you are seeing a partial view. |
-| **Resilient background jobs** | Redis Streams with PostgreSQL as the source of truth: safe retries, dead-lettering, and no duplicate work when a message is delivered twice. |
+| **Analyze a change** | Pick a *before* and *after* version by commit message. CODETRACE finds the classes, methods and fields that were added, changed or removed, then lists the production code that depends on them and the **tests to run**, nearest first, each with a "Why?" that shows the chain of calls. |
+| **A risk score that explains itself** | A 0–100 score and level (low, medium, high, critical) built from seven independent checks: how much changed, how much depends on it, breaking API changes, module spread, uncertainty, missing tests and analysis limits. The summary says why in plain sentences. |
+| **API endpoints** | Spring MVC and JAX-RS endpoints are read from the code. A change is reported as adding, removing, changing or reaching an endpoint (`GET /orders/{id}`), and a removed endpoint counts as a breaking change. |
+| **Tests found two ways** | Through the code they call, and by name (`OrderTest`, `OrderTests`, `OrderIT`, `TestOrder` → `Order`), so a test that works through a mock is still listed. |
+| **Interfaces and implementations** | Changing an implementation reaches the callers of the interface or abstract method it implements, marked *possibly* because a call may run another implementation. For a widely implemented method, the report names it instead of flooding the results. |
+| **Markdown report** | A downloadable report that names the exact versions, dependency maps and algorithm, so anyone can reproduce it. |
+
+**For exploring a codebase**
+
+| | |
+|---|---|
+| **Dependency map** | An interactive map of classes, methods and fields and how they call, use, extend, implement, override and test each other. Click anything to see what uses it and what it uses, with the file and line of each link. |
+| **"How is A connected to B?"** | Pick any two parts of the code and see the shortest chains of dependencies between them, step by step. |
+| **Compare versions** | What code and which connections appeared or disappeared between two versions. |
+| **Code browser** | Every class, method and field, the API endpoints, and any file that could not be read, for any scanned version. |
+
+**Built for a smooth experience**
+
+| | |
+|---|---|
+| **One-click preparation** | "Prepare" scans a version and maps its dependencies without further clicks. Analyzing a version that is not ready prepares it first. |
+| **Live progress** | Every background task shows each step as it happens, in plain words ("Reading the code", "Read 268 files (259 unchanged, reused)", "Building the dependency map", "Analysis ready: Medium risk"), with durations, retries and a "Try again" on failure. |
+| **Fast repeat scans** | A new version reuses everything that did not change since an earlier scan, matched by file content, so renamed files are reused too. |
+| **Light and dark themes** | A clean, GitHub-inspired interface with solid colours and readable contrast. Every page keeps its state in the URL, so links and refreshes keep your place. |
+
+**Under the hood**
+
+| | |
+|---|---|
+| **Versioned, immutable results** | Each dependency map belongs to one commit and one resolver version, is validated in SQL and published in a single atomic step. Readers never see a half-built map, and published results cannot be modified. |
+| **Provenance on every link** | Resolution state (`RESOLVED`, `AMBIGUOUS` with all candidates kept, or `UNRESOLVED` with a reason), confidence, source file and line, and the versions of the code that produced it. |
+| **Resilient background jobs** | Redis Streams with PostgreSQL as the source of truth: safe retries, dead-lettering, no duplicate work when a message is delivered twice, and a daily clean-up of superseded results. |
 
 ---
 
@@ -74,9 +95,9 @@ docker compose up --build
 
 Stop with `docker compose down`. Add `-v` to also delete the database and cloned repositories.
 
-### Monitoring the jobs (optional)
+**Try a local repository:** run `./scripts/make-demo-repo.sh` (Windows: `.\scripts\make-demo-repo.ps1`), then connect `/repos/demo-java`.
 
-Start two extra tools alongside the stack to watch background work as it happens:
+### Monitoring the jobs (optional)
 
 ```bash
 docker compose --profile tools up -d
@@ -84,13 +105,11 @@ docker compose --profile tools up -d
 
 | Tool | URL | What you see |
 |---|---|---|
-| **RedisInsight** | http://localhost:5540 | The `codetrace:jobs` stream and dead-letter stream, the `indexers` consumer group, pending messages and lag. The connection to Redis is pre-configured. |
-| **Dozzle** | http://localhost:8888 | Live, searchable logs of every container: each job's attempts and outcome in the worker, and each request in the API. |
-| **Worker health** | http://localhost:8081/actuator/health | Whether the worker can reach PostgreSQL and Redis (also used by the Compose health check). |
+| **RedisInsight** | http://localhost:5540 | The job streams, the consumer group, pending messages and lag (pre-configured). |
+| **Dozzle** | http://localhost:8888 | Live, searchable logs of every container. |
+| **Worker health** | http://localhost:8081/actuator/health | Whether the worker can reach PostgreSQL and Redis. |
 
-These tools listen on `127.0.0.1` only. Dozzle reads the Docker socket, so keep it local. Stop them with `docker compose --profile tools stop redisinsight dozzle`.
-
-**Try a local repository:** run `./scripts/make-demo-repo.sh` (Windows: `.\scripts\make-demo-repo.ps1`), then connect `/repos/demo-java` as a local path.
+These tools listen on `127.0.0.1` only. Dozzle reads the Docker socket, so keep it local.
 
 ---
 
@@ -99,10 +118,10 @@ These tools listen on `127.0.0.1` only. Dozzle reads the Docker socket, so keep 
 **In the dashboard**
 
 1. Paste a repository link, for example `https://github.com/google/gson`, and click **Connect**.
-2. When the status shows `SYNCED`, open the repository and click **Index** on a commit.
-3. Click **Build graph**, then **Open graph**.
-4. Search for a class or method, adjust depth and filters, and click a link to see its evidence.
-5. Build the graph for a second revision too. In **Change impact**, pick the *base* (before) and *head* (after) revisions and click **Analyze change**. Open the finished report to see the risk breakdown, changed and affected symbols, tests to run and evidence, or download it as Markdown.
+2. On **Overview**, click **Prepare** on a version. Watch each step as it scans the code and maps its dependencies.
+3. Open **Analyze a change**, pick the *before* and *after* versions, and click **Analyze**. Versions that are not prepared yet are prepared first.
+4. Read the result: the risk and why, what changed, what could break, tests to run and any API endpoints touched. Open "Why?" on any row for its evidence, or download the Markdown report.
+5. Use **Explore** to browse the dependency map, ask "How is A connected to B?" or compare two versions. **Code** lists classes, endpoints and unreadable files; **Activity** shows every task and its steps.
 
 **From the API**
 
@@ -112,36 +131,38 @@ curl -X POST localhost:8080/api/v1/repositories \
   -H 'Content-Type: application/json' \
   -d '{"sourceType":"GIT_URL","location":"https://github.com/google/gson"}'
 
-# 2. Index the latest commit, then build its dependency graph
-curl -X POST localhost:8080/api/v1/repositories/<repo-id>/index-jobs      -H 'Content-Type: application/json' -d '{}'
-curl -X POST localhost:8080/api/v1/repositories/<repo-id>/graph-snapshots -H 'Content-Type: application/json' -d '{}'
+# 2. Scan a commit, then build its dependency map (follow progress with /index-jobs/{id}/events)
+curl -X POST localhost:8080/api/v1/repositories/<repo-id>/index-jobs      -H 'Content-Type: application/json' -d '{"commitHash":"<sha>"}'
+curl -X POST localhost:8080/api/v1/repositories/<repo-id>/graph-snapshots -H 'Content-Type: application/json' -d '{"commitHash":"<sha>"}'
 
-# 3. Query the published snapshot
+# 3. Explore a published map
 curl "localhost:8080/api/v1/snapshots/<snapshot-id>/nodes?type=TYPE&q=Gson"
-curl "localhost:8080/api/v1/snapshots/<snapshot-id>/graph?center=<node-id>&depth=2"
-curl "localhost:8080/api/v1/snapshots/<snapshot-id>/paths?from=<a>&to=<b>&types=CONTAINS,CALLS,REFERENCES"
+curl "localhost:8080/api/v1/snapshots/<snapshot-id>/paths?from=<a>&to=<b>"
+curl "localhost:8080/api/v1/snapshots/<base-snapshot>/compare/<head-snapshot>"
 
-# 4. Analyse a change between two graphed revisions, then read or download the report
+# 4. Analyse a change between two prepared versions, then read or download the report
 curl -X POST localhost:8080/api/v1/repositories/<repo-id>/impact-reports \
-  -H 'Content-Type: application/json' -d '{"baseCommit":"<40-char sha>","headCommit":"<40-char sha>","depth":4}'
-curl "localhost:8080/api/v1/impact-reports/<report-id>/findings?type=AFFECTED&limit=50"
+  -H 'Content-Type: application/json' -d '{"baseCommit":"<sha>","headCommit":"<sha>","depth":4}'
+curl "localhost:8080/api/v1/impact-reports/<report-id>/findings?type=AFFECTED&test=true&limit=50"
 curl -OJ "localhost:8080/api/v1/impact-reports/<report-id>/report.md"
 ```
 
 | Endpoint | Purpose |
 |---|---|
 | `POST /repositories` | Register a source (`GIT_URL` or `LOCAL`); idempotent |
-| `POST /repositories/{id}/index-jobs` | Parse one commit into symbols and reference facts |
-| `POST /repositories/{id}/graph-snapshots` | Build and publish the dependency graph for an indexed commit |
-| `GET /snapshots/{id}/nodes` | Paged node search |
-| `GET /snapshots/{id}/graph` | Bounded neighbourhood around a node |
-| `GET /snapshots/{id}/paths` | All shortest paths between two nodes, flagged *certain* or not |
-| `POST /repositories/{id}/impact-reports` | Analyse the change between two graphed revisions; idempotent |
-| `GET /impact-reports/{id}` | Risk score, level and the reason behind each signal |
-| `GET /impact-reports/{id}/findings` | Paged changed, affected and possible symbols with evidence chains |
-| `GET /impact-reports/{id}/report.md` | The Markdown impact report |
+| `POST /repositories/{id}/index-jobs` | Scan one commit into symbols, reference facts and HTTP endpoints (unchanged files are reused) |
+| `POST /repositories/{id}/graph-snapshots` | Build and publish the dependency map of a scanned commit |
+| `GET /index-jobs/{id}/events`, `GET /repositories/{id}/activity` | A job's progress steps in plain words; the newest steps of all of a repository's jobs |
+| `GET /index-jobs/{id}/symbols`, `/endpoints`, `/diagnostics` | What a scan found, paged |
+| `GET /snapshots/{id}/nodes`, `/nodes/{node}`, `/nodes/{node}/edges` | Search, a node's degree counts, its connections with provenance |
+| `GET /snapshots/{id}/graph`, `/paths` | Bounded neighbourhood; all shortest paths between two nodes |
+| `GET /snapshots/{base}/compare/{head}` (+ `/nodes`, `/edges`) | What appeared, disappeared or changed between two versions |
+| `POST /repositories/{id}/impact-reports` | Analyse the change between two prepared versions; idempotent |
+| `GET /impact-reports/{id}` | Risk score, level, the reason behind each check, and notes |
+| `GET /impact-reports/{id}/findings` | Paged changed, affected, possible and endpoint findings with evidence (`type`, `module`, `test` filters) |
+| `GET /impact-reports/{id}/report.md` | The Markdown report |
 
-Errors follow [RFC 7807](https://www.rfc-editor.org/rfc/rfc7807), and every response carries an `X-Correlation-Id` header. Graph queries answer only for published snapshots, and findings only for completed reports (`409` otherwise).
+Errors follow [RFC 7807](https://www.rfc-editor.org/rfc/rfc7807), and every response carries an `X-Correlation-Id` header. Map queries answer only for published snapshots, and findings only for completed reports (`409` otherwise).
 
 ---
 
@@ -151,54 +172,56 @@ Errors follow [RFC 7807](https://www.rfc-editor.org/rfc/rfc7807), and every resp
  Git URL / local path
         │
         ▼
- ┌─────────────┐   validate source (allow-list, SSRF guard, local-root check)
- │ 1. Register │   then canonicalise, so the same repo is never added twice
+ ┌─────────────┐   validate the source (host allow-list, public addresses only, local-root check)
+ │ 1. Register │   and canonicalise it, so the same repository is never added twice
  └──────┬──────┘
         ▼
- ┌─────────────┐   bare, depth-limited clone (or read-only open of a local repo)
- │ 2. Sync     │   and discover recent commits
+ ┌─────────────┐   bare, depth-limited clone with redirects refused and the size limit enforced
+ │ 2. Sync     │   during the download (or a read-only open of a local repository)
  └──────┬──────┘
         ▼
- ┌─────────────┐   read files straight from Git objects, with no checkout; parse
- │ 3. Index    │   Java; store declarations, imports and raw reference facts
- └──────┬──────┘   in one all-or-nothing transaction
+ ┌─────────────┐   read files straight from Git objects, with no checkout; copy the facts of
+ │ 3. Scan     │   unchanged files from an earlier scan; parse the rest (declarations, references,
+ └──────┬──────┘   argument types, HTTP endpoints) and store everything in one transaction
         ▼
- ┌─────────────┐   resolve facts into nodes and edges with evidence, write them,
- │ 4. Graph    │   validate invariants in SQL, then publish atomically
+ ┌─────────────┐   resolve facts into nodes and links with evidence, write them,
+ │ 4. Map      │   validate invariants in SQL, then publish atomically
  └──────┬──────┘
         ▼
- ┌─────────────┐   diff base and head, map changed lines to symbols, walk the
- │ 5. Impact   │   base graph backwards, score the risk, store an immutable
- └──────┬──────┘   report in one transaction
+ ┌─────────────┐   diff before and after, map changed lines to symbols, walk the map backwards,
+ │ 5. Analyze  │   compare endpoints, score the risk, store an immutable report
+ └──────┬──────┘
         ▼
-   Dashboard and REST API: graph explorer, impact reports, Markdown download
+   Dashboard and REST API, with every step reported live as it happens
 ```
 
 ### How a change is analysed
 
 1. **Diff.** The two commits' trees are compared directly in Git, with rename detection. A small lexer narrows each changed region to lines that hold code, so edits to comments, Javadoc or blank lines change nothing.
-2. **Changed symbols.** Each region marks the *innermost* declaration it touches: an edit inside a method marks the method, not its class. Comparing both revisions labels every symbol `ADDED`, `MODIFIED` or `REMOVED`; a changed signature is a removal plus an addition, which is exactly what breaks callers.
-3. **Blast radius.** A breadth-first search follows `CALLS`, `REFERENCES`, `EXTENDS` and `IMPLEMENTS` edges *backwards* in the **base** revision's graph, the code that relied on the old behaviour. It is bounded by depth and size and safe on cycles.
-4. **Evidence.** Every affected symbol keeps its distance and the shortest chain of edges to the change, with file and line per hop. It is *proven* if every hop is resolved and *uncertain* if the chain crosses an ambiguous link. Calls whose receiver type is unknown are listed separately as *possible* dependents and never counted.
-5. **Risk and report.** Seven independent signals add up to a 0–100 score. The report binds the two graph snapshots and the algorithm version, becomes read-only once complete, and renders the same Markdown every time.
+2. **Changed symbols.** Each region marks the *innermost* declaration it touches: an edit inside a method marks the method, not its class. A changed signature is a removal plus an addition, which is exactly what breaks callers.
+3. **What could break.** A breadth-first search follows calls, uses, `extends` and `implements` *backwards* in the **before** version's map, the code that relied on the old behaviour. It also steps from a changed implementation to the callers of the abstract or interface method it implements, when that method has at most five implementations. It is bounded by depth and size and safe on cycles.
+4. **Tests to run.** Tests reached that way, plus test classes named after a changed or affected class.
+5. **Evidence.** Every affected symbol keeps the shortest chain of links to the change, with file and line per step. It is *proven* only if every step is certain. Calls whose receiver type is unknown are listed separately for a manual check and never counted.
+6. **Risk, endpoints and report.** Seven independent checks add up to a 0–100 score; endpoints are compared by method and route; anything deliberately not followed becomes a plain note. The report binds both maps and the algorithm version, becomes read-only once complete, and renders the same Markdown every time.
 
-### The graph model
+### The dependency map
 
 | Node types | `PACKAGE` · `FILE` · `TYPE` · `METHOD` · `FIELD` |
 |---|---|
-| **Edge types** | `CONTAINS` · `IMPORTS` · `EXTENDS` · `IMPLEMENTS` · `REFERENCES` · `CALLS` |
-| **Edge states** | `RESOLVED` · `AMBIGUOUS` · `UNRESOLVED` |
+| **Link types** | `CONTAINS` · `IMPORTS` · `EXTENDS` · `IMPLEMENTS` · `OVERRIDES` · `REFERENCES` · `CALLS` · `TESTS` |
+| **Link states** | `RESOLVED` · `AMBIGUOUS` · `UNRESOLVED` |
 
-Type names are resolved through nested scopes, single imports, the same package and wildcard imports. Method calls are resolved through the receiver's type and its supertypes, nearest declaration first, matching on name and argument count.
+Type names are resolved through nested scopes, single and wildcard imports, the same package and static imports. A method call is resolved through the receiver's type and its supertypes, nearest declaration first. Between overloads with the same number of arguments, the argument types written in the code (literals, `new`, casts, declared variables) pick the applicable one, following Java's rules for widening, boxing and varargs.
 
 When the evidence is not enough, CODETRACE records that fact instead of guessing:
 
 | Situation | Result |
 |---|---|
-| One provable target | `RESOLVED`, confidence 1.0 (or 0.9 when picked by argument count) |
-| Several overloads fit equally | One `AMBIGUOUS` edge per candidate, sharing an alternative group, confidence 0.9 ÷ candidates |
+| One provable target | `RESOLVED`, confidence 1.0 (0.9 when chosen by argument count or types) |
+| Several overloads still fit | One `AMBIGUOUS` link per candidate, sharing an alternative group, confidence 0.9 ÷ candidates |
 | Target is a JDK or third-party type | `UNRESOLVED` with a reason such as `RECEIVER_TYPE_NOT_IN_REPOSITORY` |
 | Receiver type cannot be determined | `UNRESOLVED` with `RECEIVER_TYPE_UNKNOWN` |
+| Test class named after a class | `TESTS` link, confidence 0.8 (a naming match) |
 
 ### Architecture
 
@@ -211,50 +234,48 @@ CODETRACE is a **modular monolith**: one Spring Boot codebase that runs in two r
                                                               Worker ─▶ JGit ─▶ Git objects
 ```
 
-- **API** serves REST and validates requests. **Worker** consumes jobs; it exposes no REST endpoints.
+- **API** serves REST and validates requests. **Worker** runs jobs and records each step as it goes; it exposes no REST endpoints.
 - **PostgreSQL is the source of truth** (Flyway migrations). Redis only carries "look at job X" messages, so losing or duplicating one is harmless.
 - **Idempotent jobs:** a worker *claims* a job with one atomic conditional `UPDATE`, so only one worker runs it even if the message arrives twice. Messages are acknowledged only after the outcome is stored; stalled ones are reclaimed, transient failures are retried up to three times, and exhausted jobs land in a dead-letter stream.
-- **Database-enforced integrity:** composite foreign keys keep edges inside their own snapshot, check constraints tie each resolution state to its required fields, and triggers reject any change to a published snapshot. Node ids are deterministic, so rebuilding a snapshot yields identical ids.
+- **Database-enforced integrity:** composite foreign keys keep links inside their own map, check constraints tie each resolution state to its required fields, and triggers reject any change to a published map or a completed report.
 
 ---
 
 ## Performance
 
-Measured on [google/gson](https://github.com/google/gson) at commit `e5f02ab`: 268 Java files, 5,137 symbols.
+All figures were measured on [google/gson](https://github.com/google/gson) (268 Java files, 5,137 symbols) with the full Compose stack and a single client on localhost.
 
-**Hardware:** laptop, Intel Core i5-1240P, 8 GB RAM, Windows 11, Docker Desktop. Full Compose stack, a single client on localhost. Job times are the jobs' own start and finish timestamps. Query latencies are client-side, over 20 sequential requests after one warm-up, and include HTTP and JSON overhead.
+**Hardware:** laptop, Intel Core i5-1240P, 8 GB RAM, Windows 11, Docker Desktop. Job times are the jobs' own start and finish timestamps; query latencies are client-side and include HTTP and JSON.
 
 | Step | Result |
 |---|---|
 | Sync (depth-50 clone over the network) | 14.6 s |
-| Index | 4.7 s (≈ 57 files/s, ≈ 1,090 symbols/s) |
-| Graph build (resolve, write, validate, publish) | 22.7 s for 5,428 nodes and 43,986 edges |
+| Scan, full (`codetrace.ingestion.incremental=false`) | 3.6–4.7 s per commit (two rounds of three commits) |
+| Scan, incremental (next commit, 259 of 268 files reused) | 1.2–1.7 s per commit (three rounds), about 2.5× faster |
+| Dependency map build (resolve, write, validate, publish) | 3.9–5.2 s over eight from-scratch rebuilds of one commit, measured before override and test links were added; single builds with the current resolver took 5–16 s. 5,428 nodes and about 38,600 links |
 
-| Query | p50 | p95 |
-|---|---|---|
-| Node search | 23 ms | 54 ms |
-| Neighbourhood of `Gson`, depth 1 (200 edges) | 60 ms | 76 ms |
-| Neighbourhood of `Gson`, depth 3 (500 edges) | 110 ms | 161 ms |
-| All shortest paths `Gson → TypeAdapter` | 44 ms | 52 ms |
+| Query (20 sequential requests after warm-up, centre `JsonArray`, measured before override and test links were added) | p95 |
+|---|---|
+| Node search | 13–18 ms |
+| Neighbourhood, depth 1 | 8–9 ms |
+| Neighbourhood, depth 3 (223 nodes, 499 links) | 73–81 ms |
+| All shortest paths | 7–9 ms |
 
-*p50 is the median; p95 means 95 % of requests finished at least that fast. p99 and concurrent-load figures are not published yet because they have not been measured.*
+*p95 means 95 % of requests finished at least that fast; ranges cover three runs. Concurrent-load figures are not published because they have not been measured.*
 
-**Graph write throughput:** 30,000 nodes + 60,000 edges in 6.3 s (≈ 14,200 rows/s) on PostgreSQL in Testcontainers, using batched multi-row inserts. Concurrent readers during that write never observed a partially published snapshot.
-
-**Resolution quality on gson:** of 43,986 edges, 40.2 % are resolved, 23.5 % ambiguous and 36.3 % unresolved. Of 15,998 call sites, 37.5 % resolve to one target, 11.3 % are ambiguous (several overloads with the same argument count), and 51.2 % are unresolved, mostly calls on JDK or test-library types that are not part of the repository.
+**Resolution quality on gson:** 48.5 % of links are resolved, 10.2 % ambiguous and 41.3 % unresolved (mostly calls on JDK or test-library types outside the repository). Choosing overloads by argument types reduced ambiguous links from 10,352 to 3,940.
 
 **Change impact on gson:** commit `7fc4d18` ("Add JsonPrimitive.TRUE, FALSE, and of(boolean)") against its parent, depth 4.
 
 | Result | Value |
 |---|---|
-| Analysis job (diff, map, traverse, score, store) | 5.8 s |
-| Changed symbols | 14 (9 production, 5 test) |
-| Affected | 14 production symbols, 147 test symbols, 17 possible dependents |
-| Risk | 35 / 100, MEDIUM |
+| Analysis job (diff, map, traverse, score, store) | 3.7 s |
+| Changed symbols | 14 |
+| Affected | 6 production symbols and 32 tests (15 marked *possibly*), plus 18 calls to check by hand |
+| Risk | 35 / 100, medium |
+| Notes | Callers of `TypeAdapter#read`, implemented by 46 classes, were not followed |
 
-Most affected symbols in this example are marked *uncertain*. The change touches `JsonArray.add(Boolean)`, which has five one-argument overloads that the resolver cannot tell apart without argument types, so every caller of `add(...)` is a candidate rather than a proven dependent.
-
-**Accuracy on labelled changes:** four hand-labelled scenarios run through the full pipeline: a body change, a signature change, deleting unused code, and a caller whose receiver type is unknown. Each scored precision 1.00 and recall 1.00. The fixture is small and uses constructs the resolver supports, so treat this as a correctness check rather than a general accuracy figure.
+**Accuracy on labelled changes:** five hand-labelled scenarios run through the full pipeline (a body change, a signature change, deleting unused code, a caller whose receiver type is unknown, and a change reaching callers through an interface). Each scored precision 1.00 and recall 1.00. The fixture is small and uses constructs the resolver supports, so treat this as a correctness check rather than a general accuracy figure.
 
 ---
 
@@ -263,9 +284,9 @@ Most affected symbols in this example are marked *uncertain*. The change touches
 Repository contents are treated as **untrusted input**.
 
 - **Never executed.** Source is read from Git objects and parsed as text. No checkout, build, test or script runs, so hooks and build files inside a repository have no effect.
-- **Remote URLs** must be `https://` on an allow-listed host (GitHub, GitLab and Bitbucket by default), with no credentials, query string or unusual port. Every DNS address must be public, checked at registration and again before cloning (SSRF guard).
+- **Remote URLs** must be `https://` on an allow-listed host (GitHub, GitLab and Bitbucket by default), with no credentials, query string or unusual port. Every DNS address must be public, checked at registration and again right before cloning. Clones refuse HTTP redirects.
 - **Local repositories** are disabled unless you configure root folders, and the resolved real path must sit inside one of them.
-- **Bounded work.** Clone depth and time, repository size, file count, per-file and total bytes, symbol and reference counts, parse time, graph size, query depth and result sizes are all capped.
+- **Bounded work.** Clone depth and time, repository size (enforced during the download), file count, per-file and total bytes, per-file parse time, symbol and reference counts, map size, query depth and result sizes are all capped.
 - **No leaks.** Errors and logs carry ids and categories, never server paths, source code or credentials. Containers run as a non-root user.
 
 Only public repositories are supported today. If you find a vulnerability, please contact the maintainer privately instead of opening a public issue.
@@ -281,11 +302,14 @@ Settings are environment variables; copy `.env.example` to `.env` for the Compos
 | `CODETRACE_CORS_ORIGINS` | `http://localhost:3000` | Browser origins allowed to call the API |
 | `CODETRACE_LOCAL_REPOS_DIR` | `./data/local-repos` | Host folder mounted read-only at `/repos` |
 | `CODETRACE_INGESTION_ALLOWED_HOSTS` | `github.com`, `gitlab.com`, `bitbucket.org` | Hosts a remote URL may use |
-| `CODETRACE_INGESTION_MAX_JAVA_FILES` | `5000` | Files indexed per commit |
-| `CODETRACE_GRAPH_MAX_NODES` / `_MAX_EDGES` | `500000` / `2000000` | Size cap per snapshot |
-| `CODETRACE_GRAPH_MAX_QUERY_RESULTS` | `500` | Upper bound on any query result |
+| `CODETRACE_INGESTION_MAX_JAVA_FILES` | `5000` | Files scanned per commit |
+| `CODETRACE_INGESTION_INCREMENTAL` | `true` | Reuse the facts of unchanged files from an earlier scan |
+| `CODETRACE_INGESTION_FILE_PARSE_SECONDS` | `10` | A file that takes longer to parse is skipped and reported |
+| `CODETRACE_GRAPH_MAX_NODES` / `_MAX_EDGES` | `500000` / `2000000` | Size cap per dependency map |
+| `CODETRACE_IMPACT_MAX_DISPATCH_IMPLEMENTATIONS` | `5` | Follow an interface method to its callers only up to this many implementations |
+| `CODETRACE_RETENTION_ENABLED` | `true` | Daily clean-up of superseded results and old failures |
 
-All limits live under `CODETRACE_INGESTION_*` and `CODETRACE_GRAPH_*`.
+All limits live under `CODETRACE_INGESTION_*`, `CODETRACE_GRAPH_*`, `CODETRACE_IMPACT_*` and `CODETRACE_RETENTION_*`.
 
 ---
 
@@ -296,7 +320,7 @@ All limits live under `CODETRACE_INGESTION_*` and `CODETRACE_GRAPH_*`.
 | Backend | Java 21, Spring Boot 3.5, Maven, Spring JDBC (explicit SQL, no ORM) |
 | Parsing and Git | JavaParser, JGit (reads Git objects directly, no `git` binary) |
 | Data and queue | PostgreSQL 17 with `pg_trgm`, Flyway, Redis 7.4 Streams |
-| Frontend | Next.js 15 (App Router), React 19, TypeScript, React Flow, Dagre |
+| Frontend | Next.js 15 (App Router), React 19, TypeScript, React Flow, Dagre; no UI library |
 | Testing | JUnit 5, AssertJ, Mockito, Testcontainers, Awaitility |
 | Delivery | Docker, Docker Compose, GitHub Actions |
 | Monitoring (optional) | RedisInsight, Dozzle, Spring Boot Actuator |
@@ -315,7 +339,7 @@ Contributions are welcome, whether a bug fix, a test, documentation or a new ide
    cd frontend && npm ci && npm run lint && npm run build
    ```
 4. **Keep changes focused** and add tests for new behaviour.
-5. **Use conventional commits**, for example `feat(graph): ...`, `fix(parser): ...`, `docs: ...`.
+5. **Use conventional commits**, for example `feat(graph): ...`, `fix(ingestion): ...`, `docs: ...`.
 6. **Open a pull request** that explains what changed and why. CI must pass.
 
 Tips: use `clean verify` (some IDEs leave stale classes in `target/`), and set `JAVA_HOME` to JDK 21 if your default `java` is older. `scripts/make-demo-repo.*` builds a small repository from `test-fixtures/demo-java` with nested types, overloads, a deliberately malformed file and ignored paths.
@@ -324,13 +348,14 @@ Found a bug or have a question? Open an issue.
 
 ```
 codetrace/
-├── backend/        Spring Boot app (API + worker from one jar)
+├── backend/          Spring Boot app (API + worker from one jar), feature-first packages
 │   └── src/main/java/dev/codetrace/
-│       ├── repository/  registration and revisions      ├── graph/     resolver, snapshots, queries
-│       ├── ingestion/   Git access and bounded indexer   ├── jobs/      queueing, claiming, retries
-│       ├── parser/      Java extraction                  └── security/  source validation
-├── frontend/       Next.js dashboard
-├── test-fixtures/  sample source trees for tests and demos
+│       ├── source/     registered repositories      ├── graph/    resolver, maps, queries, comparison
+│       ├── ingestion/  Git access, parsing, scans   ├── impact/   change detection, analysis, risk
+│       ├── symbols/    what a scan found            ├── report/   Markdown report
+│       ├── jobs/       queue, retries, progress     └── system/   status and daily clean-up
+├── frontend/         Next.js dashboard (app/, components/, lib/)
+├── test-fixtures/    sample source trees for tests and demos
 └── docker-compose.yml
 ```
 
