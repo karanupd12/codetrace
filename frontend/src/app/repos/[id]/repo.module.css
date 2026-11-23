@@ -289,3 +289,19 @@
     display: none;
   }
 }
+
+.dockBar {
+  display: block;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--green), transparent) 0 0 / 35% 100% no-repeat, var(--green-subtle);
+  animation: dockSlide 1.6s ease-in-out infinite;
+}
+
+@keyframes dockSlide {
+  from {
+    background-position: -35% 0, 0 0;
+  }
+  to {
+    background-position: 135% 0, 0 0;
+  }
+}

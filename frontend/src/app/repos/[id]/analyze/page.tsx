@@ -19,10 +19,12 @@ import {
   Field,
   Help,
   RelativeTime,
-  RiskBadge,
+  RISK_TONE,
   Sha,
   controlClass,
+  riskWord,
 } from "@/components/ui";
+import { IconTile } from "@/components/viz";
 import s from "../analyze.module.css";
 
 type Pending = { base: string; head: string; depth: number };
@@ -51,33 +53,95 @@ function versionLabel(r: Revision) {
   return `${r.summary.slice(0, 70) || "(no message)"} · ${r.commitHash.slice(0, 7)}${when ? ` · ${when}` : ""}`;
 }
 
-function ReportRow({ r, base, summaryOf }: { r: ImpactReport; base: string; summaryOf: (c: string) => string }) {
+const STRIPE: Record<string, string> = { green: s.stripeGreen, yellow: s.stripeYellow, orange: s.stripeOrange, red: s.stripeRed };
+
+function ReportCard({ r, base, summaryOf }: { r: ImpactReport; base: string; summaryOf: (c: string) => string }) {
+  const done = r.status === "COMPLETED";
+  const tone = done && r.riskLevel ? RISK_TONE[r.riskLevel] : r.status === "FAILED" ? "red" : "yellow";
+  const tests = r.testsAffectedCount ?? 0;
   return (
     <li>
-      <Link href={`${base}/analyze/${r.id}`} className={s.reportRow}>
-        <div className={s.reportMain}>
-          <span className={s.reportTitle}>
-            <span className={s.from}>{summaryOf(r.baseCommit)}</span>
-            <Icon name="arrowRight" size={13} />
-            <span>{summaryOf(r.headCommit)}</span>
-          </span>
-          <span className={s.reportMeta}>
-            <Sha value={r.baseCommit} copy={false} /> → <Sha value={r.headCommit} copy={false} /> · <RelativeTime iso={r.createdAt} />
-            {r.status === "COMPLETED" && (
-              <> · {plural(r.affectedCount ?? 0, "place")} may be affected · {plural(r.testsAffectedCount ?? 0, "test")} to run</>
-            )}
-            {r.status === "FAILED" && <span className={s.fail}> · {r.failureReason}</span>}
+      <Link href={`${base}/analyze/${r.id}`} className={`${s.reportCard} ${STRIPE[tone] ?? ""}`}>
+        <div className={s.reportTop}>
+          {done ? (
+            <span className={s.score}>
+              <span className={s.scoreNumber}>{r.riskScore ?? 0}</span>
+              <span className={s.scoreWord}>{r.riskLevel ? `${riskWord(r.riskLevel)} risk` : ""}</span>
+            </span>
+          ) : r.status === "FAILED" ? (
+            <Badge tone="red" dot>Failed</Badge>
+          ) : (
+            <Badge tone="yellow" dot>Analyzing…</Badge>
+          )}
+          <span className={s.when}>
+            <RelativeTime iso={r.createdAt} />
           </span>
         </div>
-        {r.status === "COMPLETED" && r.riskLevel ? (
-          <RiskBadge level={r.riskLevel} />
+        <div className={s.reportVersions}>
+          <span className={s.from} title={summaryOf(r.baseCommit)}>
+            <Sha value={r.baseCommit} copy={false} /> {summaryOf(r.baseCommit)}
+          </span>
+          <span className={s.to} title={summaryOf(r.headCommit)}>
+            <Icon name="arrowRight" size={12} /> <Sha value={r.headCommit} copy={false} /> {summaryOf(r.headCommit)}
+          </span>
+        </div>
+        {done ? (
+          <div className={s.reportStats}>
+            <span>
+              <IconTile icon="diff" tone="blue" size={22} /> {r.changedCount ?? 0} changed
+            </span>
+            <span>
+              <IconTile icon="alert" tone="orange" size={22} /> {(r.affectedCount ?? 0) - tests} code
+            </span>
+            <span>
+              <IconTile icon="test" tone="violet" size={22} /> {plural(tests, "test")}
+            </span>
+          </div>
         ) : r.status === "FAILED" ? (
-          <Badge tone="red" dot>Failed</Badge>
-        ) : (
-          <Badge tone="yellow" dot>Analyzing…</Badge>
-        )}
+          <span className={s.fail}>{r.failureReason}</span>
+        ) : null}
       </Link>
     </li>
+  );
+}
+
+/** One side of the comparison: the chosen version, how ready it is, and a picker to change it. */
+function VersionCard({ id, side, value, onChange, revisions }: {
+  id: string;
+  side: "before" | "after";
+  value: string;
+  onChange: (c: string) => void;
+  revisions: Revision[];
+}) {
+  const { versionOf } = useRepo();
+  const rev = revisions.find((r) => r.commitHash === value);
+  const v = value ? versionOf(value) : null;
+  return (
+    <div className={`${s.versionCard} ${side === "before" ? s.sideBefore : s.sideAfter}`}>
+      <div className={s.versionCardHead}>
+        <span className={s.sideTag}>{side === "before" ? "Before" : "After"}</span>
+        {v && <VersionBadge v={v} />}
+      </div>
+      <p className={s.versionTitle}>{rev?.summary || "(no message)"}</p>
+      <p className={s.versionSub}>
+        {rev && <Sha value={rev.commitHash} copy={false} />}
+        {rev?.authorTime && (
+          <>
+            {" · "}
+            <RelativeTime iso={rev.authorTime} />
+          </>
+        )}
+      </p>
+      <Field label={side === "before" ? "Version before the change" : "Version after the change"} htmlFor={id}>
+        <select id={id} className={controlClass} value={value} onChange={(e) => onChange(e.target.value)}>
+          {revisions.map((r) => (
+            <option key={r.commitHash} value={r.commitHash}>
+              {versionLabel(r)}
+            </option>
+          ))}
+        </select>
+      </Field>
+    </div>
   );
 }
 
@@ -213,29 +277,20 @@ export default function Analyze() {
         ) : (
           <div className={s.form}>
             <div className={s.pickers}>
-              <Field label="Before (the old version)" htmlFor="base">
-                <select id="base" className={controlClass} value={base} onChange={(e) => setBase(e.target.value)}>
-                  {revisions.map((r) => (
-                    <option key={r.commitHash} value={r.commitHash}>
-                      {versionLabel(r)}
-                    </option>
-                  ))}
-                </select>
-                {baseState && <VersionBadge v={baseState} />}
-              </Field>
-              <span className={s.arrow} aria-hidden>
-                <Icon name="arrowRight" size={18} />
-              </span>
-              <Field label="After (the new version)" htmlFor="head">
-                <select id="head" className={controlClass} value={head} onChange={(e) => setHead(e.target.value)}>
-                  {revisions.map((r) => (
-                    <option key={r.commitHash} value={r.commitHash}>
-                      {versionLabel(r)}
-                    </option>
-                  ))}
-                </select>
-                {headState && <VersionBadge v={headState} />}
-              </Field>
+              <VersionCard id="base" side="before" value={base} onChange={setBase} revisions={revisions} />
+              <button
+                type="button"
+                className={s.swap}
+                title="Swap before and after"
+                aria-label="Swap before and after"
+                onClick={() => {
+                  setBase(head);
+                  setHead(base);
+                }}
+              >
+                <Icon name="swap" size={16} />
+              </button>
+              <VersionCard id="head" side="after" value={head} onChange={setHead} revisions={revisions} />
             </div>
             <Details summary="Advanced">
               <Field
@@ -274,7 +329,7 @@ export default function Analyze() {
         )}
       </Card>
 
-      <Card title="Past analyses" padded={data.reports.length === 0}>
+      <Card title={<span className={s.cardTitle}><IconTile icon="pulse" tone="orange" size={26} />Past analyses</span>}>
         {data.reports.length === 0 ? (
           <EmptyState icon="pulse" title="No analyses yet">
             Your analyses appear here, newest first.
@@ -282,7 +337,7 @@ export default function Analyze() {
         ) : (
           <ul className={s.reports}>
             {data.reports.map((r) => (
-              <ReportRow key={r.id} r={r} base={pathBase} summaryOf={summaryOf} />
+              <ReportCard key={r.id} r={r} base={pathBase} summaryOf={summaryOf} />
             ))}
           </ul>
         )}

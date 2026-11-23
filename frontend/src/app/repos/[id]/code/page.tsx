@@ -4,7 +4,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { listDiagnostics, listEndpoints, searchSymbols, type CodeSymbol, type Diagnostic, type Endpoint, type Job } from "@/lib/api";
 import { useRepo } from "@/lib/repo";
-import { packageOf, shortName } from "@/lib/words";
+import { KIND_HUE, methodHue, nodeKind, packageOf, shortName } from "@/lib/words";
+import { KindChip, Pill } from "@/components/viz";
 import {
   Badge,
   Banner,
@@ -68,14 +69,14 @@ function Classes({ jobId }: { jobId: string }) {
       title="Classes, methods and fields"
       padded
       actions={
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, maxWidth: "100%" }}>
           <select aria-label="Kind" className={controlClass} style={{ width: "auto" }} value={kind} onChange={(e) => setKind(e.target.value)}>
             <option value="">Everything</option>
             <option value="TYPE">Classes</option>
             <option value="METHOD">Methods</option>
             <option value="FIELD">Fields</option>
           </select>
-          <input aria-label="Search" type="search" className={controlClass} style={{ width: 240 }} placeholder="Search by name" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input aria-label="Search" type="search" className={controlClass} style={{ width: "min(240px, 100%)" }} placeholder="Search by name" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
       }
     >
@@ -86,6 +87,7 @@ function Classes({ jobId }: { jobId: string }) {
         <p style={{ color: "var(--muted)" }}>Nothing matches.</p>
       ) : (
         <>
+          <div style={{ overflowX: "auto" }}>
           <table className={tableClass}>
             <thead>
               <tr>
@@ -98,10 +100,14 @@ function Classes({ jobId }: { jobId: string }) {
               {list.items.map((sym) => (
                 <tr key={`${sym.path}|${sym.qualifiedName}`}>
                   <td>
-                    <code>{shortName(sym.qualifiedName)}</code>
-                    <div style={{ color: "var(--muted)", fontSize: 12 }}>{packageOf(sym.qualifiedName)}</div>
+                    <KindChip kind={nodeKind(sym.kind, sym.path)} name={shortName(sym.qualifiedName)} title={sym.qualifiedName} />
+                    <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 3 }}>{packageOf(sym.qualifiedName)}</div>
                   </td>
-                  <td>{KINDS[sym.kind] ?? sym.kind}</td>
+                  <td>
+                    <Pill tone={KIND_HUE[nodeKind(sym.kind, sym.path)] ?? "neutral"}>
+                      {nodeKind(sym.kind, sym.path) === "TEST" ? `Test ${(KINDS[sym.kind] ?? sym.kind).toLowerCase()}` : KINDS[sym.kind] ?? sym.kind}
+                    </Pill>
+                  </td>
                   <td style={{ color: "var(--muted)", fontSize: 13, wordBreak: "break-all" }}>
                     {sym.path}:{sym.startLine}
                   </td>
@@ -109,6 +115,7 @@ function Classes({ jobId }: { jobId: string }) {
               ))}
             </tbody>
           </table>
+          </div>
           <ShowMore shown={list.items.length} total={list.total} loading={list.loading} onMore={list.more} />
         </>
       )}
@@ -128,6 +135,7 @@ function Endpoints({ jobId }: { jobId: string }) {
         </EmptyState>
       ) : (
         <>
+          <div style={{ overflowX: "auto" }}>
           <table className={tableClass}>
             <thead>
               <tr>
@@ -140,12 +148,12 @@ function Endpoints({ jobId }: { jobId: string }) {
               {list.items.map((e, i) => (
                 <tr key={i}>
                   <td>
-                    <Badge>{e.httpMethod}</Badge>
+                    <Pill tone={methodHue(e.httpMethod)}>{e.httpMethod}</Pill>
                   </td>
                   <td>{e.route ? <code>{e.route}</code> : <span style={{ color: "var(--muted)" }}>not written as plain text</span>}</td>
                   <td>
-                    <code>{shortName(e.handlerQualifiedName)}</code>
-                    <div style={{ color: "var(--muted)", fontSize: 12 }}>
+                    <KindChip kind="METHOD" name={shortName(e.handlerQualifiedName)} title={e.handlerQualifiedName} />
+                    <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 3 }}>
                       {e.path}:{e.line}
                     </div>
                   </td>
@@ -153,6 +161,7 @@ function Endpoints({ jobId }: { jobId: string }) {
               ))}
             </tbody>
           </table>
+          </div>
           <ShowMore shown={list.items.length} total={list.total} loading={list.loading} onMore={list.more} />
         </>
       )}
@@ -172,6 +181,7 @@ function Problems({ jobId }: { jobId: string }) {
         </EmptyState>
       ) : (
         <>
+          <div style={{ overflowX: "auto" }}>
           <table className={tableClass}>
             <thead>
               <tr>
@@ -182,7 +192,7 @@ function Problems({ jobId }: { jobId: string }) {
             <tbody>
               {list.items.map((d, i) => (
                 <tr key={i}>
-                  <td style={{ wordBreak: "break-all" }}>
+                  <td style={{ wordBreak: "break-all", boxShadow: `inset 3px 0 0 var(--${d.severity === "ERROR" ? "red" : "yellow"})`, paddingLeft: 14 }}>
                     {d.path}
                     {d.line ? `:${d.line}` : ""}
                   </td>
@@ -194,6 +204,7 @@ function Problems({ jobId }: { jobId: string }) {
               ))}
             </tbody>
           </table>
+          </div>
           <ShowMore shown={list.items.length} total={list.total} loading={list.loading} onMore={list.more} />
         </>
       )}
@@ -241,7 +252,7 @@ function Code() {
   return (
     <>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 14, flexWrap: "wrap" }}>
-        <div style={{ minWidth: 320 }}>
+        <div style={{ minWidth: "min(320px, 100%)", maxWidth: "100%" }}>
           <Field label="Version" htmlFor="code-version">
             <select id="code-version" className={controlClass} value={job.id} onChange={(e) => set("version", e.target.value)}>
               {scans.map((j) => (

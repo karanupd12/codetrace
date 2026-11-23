@@ -68,25 +68,87 @@
 }
 
 .time {
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--inset);
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11.5px;
+  line-height: 18px;
   font-variant-numeric: tabular-nums;
 }
 
 .done .marker {
-  color: var(--green);
+  width: 18px;
+  height: 18px;
+  margin: 2px;
+  background: var(--green);
+  color: var(--green-fg);
 }
 
 .done .text {
   color: var(--muted);
 }
 
+/* each task's colour: the active step is tinted and its marker pulses in it */
+.hue-blue {
+  --h: var(--blue);
+  --h-bg: var(--blue-subtle);
+}
+
+.hue-violet {
+  --h: var(--violet);
+  --h-bg: var(--violet-subtle);
+}
+
+.hue-teal {
+  --h: var(--teal);
+  --h-bg: var(--teal-subtle);
+}
+
+.hue-orange {
+  --h: var(--orange);
+  --h-bg: var(--orange-subtle);
+}
+
 .active {
-  background: var(--subtle);
+  background: var(--h-bg, var(--subtle));
 }
 
 .active .text {
   font-weight: 600;
+}
+
+.active .marker {
+  color: var(--h, var(--fg));
+  animation: ring 1.6s ease-out infinite;
+}
+
+@keyframes ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--h, var(--green)) 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+
+.shimmer {
+  display: block;
+  height: 3px;
+  margin-top: 5px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent 0%, var(--h, var(--green)) 50%, transparent 100%) 0 0 / 40% 100% no-repeat,
+    color-mix(in srgb, var(--h, var(--green)) 18%, transparent);
+  animation: slide 1.4s ease-in-out infinite;
+}
+
+@keyframes slide {
+  from {
+    background-position: -40% 0, 0 0;
+  }
+  to {
+    background-position: 140% 0, 0 0;
+  }
 }
 
 .failed .marker {

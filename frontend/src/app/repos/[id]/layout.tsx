@@ -114,6 +114,7 @@ function RunningNow() {
         </span>
         <Icon name="chevronDown" size={14} />
       </button>
+      <span className={s.dockBar} aria-hidden />
       {open && (
         <div className={s.dockBody}>
           <LiveTimeline compact tasks={[...running].reverse().map((job) => ({ job }))} onRetry={reload} />

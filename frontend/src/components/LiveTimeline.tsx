@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { getJob, isActive, listJobEvents, type Job, type JobEvent } from "@/lib/api";
-import { duration, JOB_TITLE } from "@/lib/words";
+import { duration, JOB_HUE, JOB_TITLE, type Hue } from "@/lib/words";
 import Icon from "./Icon";
 import { Button, Spinner } from "./ui";
 import s from "./LiveTimeline.module.css";
@@ -16,6 +16,7 @@ type Row = {
   state: "done" | "active" | "failed" | "waiting" | "upcoming";
   at?: number;
   until?: number;
+  hue?: Hue;
 };
 
 const FAILED = (j: Job) => j.status === "FAILED" || j.status === "DEAD_LETTERED";
@@ -89,11 +90,12 @@ export default function LiveTimeline({ tasks, onRetry, compact }: {
     }
     const job = jobs[t.job.id] ?? t.job;
     const list = events[job.id] ?? [];
+    const hue = JOB_HUE[job.operation];
     if (list.length === 0) {
-      if (job.status === "QUEUED") rows.push({ key: `${job.id}:wait`, text: `${JOB_TITLE[job.operation]}: waiting to start`, state: "waiting" });
-      else if (isActive(job.status)) rows.push({ key: `${job.id}:start`, text: `${JOB_TITLE[job.operation]}…`, state: "active" });
+      if (job.status === "QUEUED") rows.push({ key: `${job.id}:wait`, text: `${JOB_TITLE[job.operation]}: waiting to start`, state: "waiting", hue });
+      else if (isActive(job.status)) rows.push({ key: `${job.id}:start`, text: `${JOB_TITLE[job.operation]}…`, state: "active", hue });
       else if (FAILED(job)) rows.push({ key: `${job.id}:fail`, text: job.errorMessage ?? "Something went wrong.", state: "failed" });
-      else rows.push({ key: `${job.id}:done`, text: JOB_TITLE[job.operation], state: "done" });
+      else rows.push({ key: `${job.id}:done`, text: JOB_TITLE[job.operation], state: "done", hue });
       continue;
     }
     list.forEach((e, i) => {
@@ -103,7 +105,7 @@ export default function LiveTimeline({ tasks, onRetry, compact }: {
       let state: Row["state"] = "done";
       if (e.step === "FAILED") state = "failed";
       else if (last && isActive(job.status)) state = e.step === "RETRYING" ? "waiting" : "active";
-      rows.push({ key: `${job.id}:${e.seq}`, text: e.message, state, at, until: state === "done" ? next : undefined });
+      rows.push({ key: `${job.id}:${e.seq}`, text: e.message, state, at, until: state === "done" ? next : undefined, hue });
     });
     if (FAILED(job) && list.at(-1)?.step !== "FAILED") {
       rows.push({ key: `${job.id}:fail`, text: job.errorMessage ?? "Something went wrong.", state: "failed" });
@@ -131,10 +133,10 @@ export default function LiveTimeline({ tasks, onRetry, compact }: {
         }}
       >
         {rows.map((r) => (
-          <li key={r.key} className={`${s.row} ${s[r.state]}`}>
+          <li key={r.key} className={`${s.row} ${s[r.state]} ${r.hue ? s[`hue-${r.hue}`] : ""}`}>
             <span className={s.marker} aria-hidden>
               {r.state === "active" ? (
-                <Spinner size={14} />
+                <Spinner size={13} />
               ) : r.state === "done" ? (
                 <Icon name="check" size={13} />
               ) : r.state === "failed" ? (
@@ -148,6 +150,7 @@ export default function LiveTimeline({ tasks, onRetry, compact }: {
             <span className={s.text}>
               {r.text}
               {r.state === "active" && !r.text.endsWith("…") ? "…" : ""}
+              {r.state === "active" && <span className={s.shimmer} aria-hidden />}
             </span>
             {r.state === "done" && r.at && r.until ? <span className={s.time}>{duration(r.until - r.at)}</span> : null}
           </li>
