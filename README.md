@@ -13,6 +13,7 @@ CODETRACE reads a Java repository, maps how its code depends on itself, and for 
 ![Next.js 15](https://img.shields.io/badge/Next.js-15-black)
 ![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-336791)
 ![Redis Streams](https://img.shields.io/badge/Redis-Streams-DC382D)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
 [Overview](#overview) · [Features](#features) · [System design](#system-design) · [How it works](#how-it-works) · [Quick start](#quick-start) · [Performance](#performance) · [Security](#security)
 
@@ -235,4 +236,4 @@ Keep changes focused, add tests for new behaviour, and use conventional commit m
 
 ## License
 
-A license has not been chosen yet.
+CODETRACE is released under the [MIT License](LICENSE).
