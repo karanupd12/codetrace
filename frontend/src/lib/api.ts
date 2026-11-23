@@ -351,7 +351,20 @@ export const listFindings = (
   return request<Page<Finding>>(`/api/v1/impact-reports/${reportId}/findings?${qs}`, undefined, signal);
 };
 
-export const reportMarkdownUrl = (reportId: string) => `${API_BASE_URL}/api/v1/impact-reports/${reportId}/report.md`;
+export type ImpactSummary = {
+  byType: Record<FindingType, number>;
+  changedByKind: Record<"ADDED" | "MODIFIED" | "REMOVED", number>;
+  endpoints: Record<"ADDED" | "MODIFIED" | "REMOVED" | "AFFECTED", number>;
+  modules: { module: string; production: number; tests: number }[];
+  otherModules: number;
+  distances: { distance: number; production: number; tests: number }[];
+  uncertain: number;
+};
+
+export const getImpactSummary = (reportId: string, signal?: AbortSignal) =>
+  request<ImpactSummary>(`/api/v1/impact-reports/${reportId}/summary`, undefined, signal);
+
+export const reportMarkdownUrl =(reportId: string) => `${API_BASE_URL}/api/v1/impact-reports/${reportId}/report.md`;
 
 // ---- symbols ----
 

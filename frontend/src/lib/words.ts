@@ -71,3 +71,49 @@ export function jobSummary(j: Job): string {
   }
   return "Done";
 }
+
+/** A colour family from the design tokens: categories (identity) and status. */
+export type Hue = "blue" | "teal" | "violet" | "pink" | "green" | "yellow" | "orange" | "red" | "neutral";
+
+/** Colour of each kind of code, the same everywhere (map, lists, chips). */
+export const KIND_HUE: Record<string, Hue> = {
+  TYPE: "blue",
+  METHOD: "teal",
+  FIELD: "yellow",
+  TEST: "violet",
+  ENDPOINT: "pink",
+  FILE: "neutral",
+  PACKAGE: "neutral",
+};
+
+/** Colour of each kind of background task. */
+export const JOB_HUE: Record<Job["operation"], Hue> = {
+  SYNC: "blue",
+  INDEX: "violet",
+  GRAPH_BUILD: "teal",
+  IMPACT: "orange",
+};
+
+/** Colour of an HTTP method pill. */
+export function methodHue(method: string): Hue {
+  switch (method) {
+    case "GET":
+      return "blue";
+    case "POST":
+      return "green";
+    case "PUT":
+    case "PATCH":
+      return "yellow";
+    case "DELETE":
+      return "red";
+    default:
+      return "neutral";
+  }
+}
+
+/** The kind of a finding's symbol, with tests and endpoints as their own kinds. */
+export function findingKind(nodeType: string, test: boolean): string {
+  if (nodeType === "ENDPOINT") return "ENDPOINT";
+  if (test) return "TEST";
+  return nodeType || "METHOD";
+}

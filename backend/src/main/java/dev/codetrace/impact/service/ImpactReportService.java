@@ -10,6 +10,7 @@ import dev.codetrace.config.ImpactProperties;
 import dev.codetrace.graph.model.Snapshot;
 import dev.codetrace.graph.service.GraphSnapshotService;
 import dev.codetrace.impact.model.Finding;
+import dev.codetrace.impact.model.ImpactSummary;
 import dev.codetrace.impact.repository.ImpactFindingRepository;
 import dev.codetrace.impact.repository.ImpactReportRepository;
 import dev.codetrace.impact.model.ImpactReport;
@@ -20,8 +21,13 @@ import dev.codetrace.jobs.model.JobOperation;
 import dev.codetrace.jobs.service.JobService;
 import dev.codetrace.source.model.SourceRepository;
 import dev.codetrace.source.service.SourceRepositoryService;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 
@@ -110,6 +116,49 @@ public class ImpactReportService {
     /** Every finding of a completed report in report order; bounded by the analysis limits. */
     public List<Finding> allFindings(UUID reportId) {
         return findings.all(completed(reportId).id());
+    }
+
+    /** Counts over a completed report's findings: per type, per module, per distance and how many are uncertain. */
+    public ImpactSummary summary(UUID reportId) {
+        List<ImpactSummary.Group> groups = findings.groups(completed(reportId).id());
+        Map<String, Long> byType = zeros("CHANGED", "AFFECTED", "POSSIBLE", "ENDPOINT");
+        Map<String, Long> changed = zeros("ADDED", "MODIFIED", "REMOVED");
+        Map<String, Long> endpoints = zeros("ADDED", "MODIFIED", "REMOVED", "AFFECTED");
+        Map<String, long[]> modules = new HashMap<>();
+        Map<Integer, long[]> distances = new TreeMap<>();
+        long uncertain = 0;
+        for (ImpactSummary.Group g : groups) {
+            byType.merge(g.findingType(), g.count(), Long::sum);
+            switch (g.findingType()) {
+                case "CHANGED" -> changed.merge(g.changeKind() == null ? "MODIFIED" : g.changeKind(), g.count(), Long::sum);
+                case "ENDPOINT" -> endpoints.merge(g.changeKind() == null ? "AFFECTED" : g.changeKind(), g.count(), Long::sum);
+                case "AFFECTED" -> {
+                    int side = g.test() ? 1 : 0;
+                    modules.computeIfAbsent(g.module() == null ? "" : g.module(), m -> new long[2])[side] += g.count();
+                    if (g.distance() != null) distances.computeIfAbsent(g.distance(), d -> new long[2])[side] += g.count();
+                    if (Boolean.FALSE.equals(g.certain())) uncertain += g.count();
+                }
+                default -> {
+                }
+            }
+        }
+        List<ImpactSummary.ModuleCount> byModule = modules.entrySet().stream()
+                .map(e -> new ImpactSummary.ModuleCount(e.getKey(), e.getValue()[0], e.getValue()[1]))
+                .sorted(Comparator.comparingLong(ImpactSummary.ModuleCount::total).reversed()
+                        .thenComparing(ImpactSummary.ModuleCount::module))
+                .toList();
+        long others = byModule.stream().skip(ImpactSummary.MAX_MODULES).mapToLong(ImpactSummary.ModuleCount::total).sum();
+        List<ImpactSummary.DistanceCount> byDistance = distances.entrySet().stream()
+                .map(e -> new ImpactSummary.DistanceCount(e.getKey(), e.getValue()[0], e.getValue()[1]))
+                .toList();
+        return new ImpactSummary(byType, changed, endpoints,
+                byModule.stream().limit(ImpactSummary.MAX_MODULES).toList(), others, byDistance, uncertain);
+    }
+
+    private static Map<String, Long> zeros(String... keys) {
+        Map<String, Long> m = new LinkedHashMap<>();
+        for (String k : keys) m.put(k, 0L);
+        return m;
     }
 
     /** A report whose findings may be read: only COMPLETED reports are exposed. */

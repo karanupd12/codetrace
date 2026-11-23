@@ -655,6 +655,27 @@ class ImpactIT {
         JsonNode page = get("/api/v1/impact-reports/" + reportId + "/findings?type=AFFECTED&limit=2&offset=2");
         assertThat(page.get("items")).hasSize(2);
         assertThat(page.get("total").asInt()).isEqualTo(6);
+
+        // the summary counts agree with the paged totals
+        JsonNode summary = get("/api/v1/impact-reports/" + reportId + "/summary");
+        assertThat(summary.at("/byType/CHANGED").asInt()).isEqualTo(1);
+        assertThat(summary.at("/byType/AFFECTED").asInt()).isEqualTo(6);
+        assertThat(summary.at("/byType/POSSIBLE").asInt()).isZero();
+        assertThat(summary.at("/changedByKind/MODIFIED").asInt()).isEqualTo(1);
+        assertThat(summary.at("/endpoints/AFFECTED").asInt()).isEqualTo(1);
+        long production = 0, tests = 0, web = -1;
+        for (JsonNode m : summary.get("modules")) {
+            production += m.get("production").asLong();
+            tests += m.get("tests").asLong();
+            if (m.get("module").asText().equals("web")) web = m.get("production").asLong() + m.get("tests").asLong();
+        }
+        assertThat(production).isEqualTo(4);
+        assertThat(tests).isEqualTo(2);
+        assertThat(web).isEqualTo(3);
+        assertThat(summary.at("/distances/0/distance").asInt()).isEqualTo(1);
+        long byDistance = 0;
+        for (JsonNode d : summary.get("distances")) byDistance += d.get("production").asLong() + d.get("tests").asLong();
+        assertThat(byDistance).isEqualTo(6);
         assertThat(rest.getForEntity("/api/v1/impact-reports/" + reportId + "/findings?type=NOPE", String.class).getStatusCode())
                 .isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(get(reports()).get(0).get("id").asText()).isEqualTo(reportId.toString());

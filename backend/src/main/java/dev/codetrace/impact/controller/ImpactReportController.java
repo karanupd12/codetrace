@@ -6,6 +6,7 @@ import dev.codetrace.impact.controller.dto.ImpactReportResponse;
 import dev.codetrace.impact.controller.dto.ImpactRequestedResponse;
 import dev.codetrace.impact.model.Finding;
 import dev.codetrace.impact.model.ImpactReport;
+import dev.codetrace.impact.model.ImpactSummary;
 import dev.codetrace.impact.service.ImpactReportService;
 import dev.codetrace.jobs.controller.dto.JobResponse;
 import jakarta.validation.Valid;
@@ -56,6 +57,11 @@ public class ImpactReportController {
                                   @RequestParam(required = false) Boolean test,
                                   @RequestParam(defaultValue = "100") int limit, @RequestParam(defaultValue = "0") int offset) {
         return service.findings(reportId, type, module, test, limit, offset);
+    }
+
+    @GetMapping("/impact-reports/{reportId}/summary")
+    public ImpactSummary summary(@PathVariable UUID reportId) {
+        return service.summary(reportId);
     }
 
     private ImpactReportResponse response(ImpactReport r) {

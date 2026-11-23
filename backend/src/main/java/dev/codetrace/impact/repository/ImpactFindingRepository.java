@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import dev.codetrace.common.util.JsonCodec;
 import dev.codetrace.impact.model.ImpactAnalysis.Hop;
 import dev.codetrace.impact.model.Finding;
+import dev.codetrace.impact.model.ImpactSummary;
 import dev.codetrace.common.web.Page;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -49,6 +50,19 @@ public class ImpactFindingRepository {
     public List<Finding> all(UUID reportId) {
         return jdbc.sql("select " + COLS + " from impact_finding where report_id = :r order by finding_type, ordinal")
                 .param("r", reportId).query(this::map).list();
+    }
+
+    /** Finding counts of a report grouped by every attribute the summary reports on. */
+    public List<ImpactSummary.Group> groups(UUID reportId) {
+        return jdbc.sql("""
+                        select finding_type, module, is_test, distance, certain, change_kind, count(*) as n
+                        from impact_finding where report_id = :r
+                        group by finding_type, module, is_test, distance, certain, change_kind""")
+                .param("r", reportId)
+                .query((rs, i) -> new ImpactSummary.Group(rs.getString("finding_type"), rs.getString("module"),
+                        rs.getBoolean("is_test"), (Integer) rs.getObject("distance"), (Boolean) rs.getObject("certain"),
+                        rs.getString("change_kind"), rs.getLong("n")))
+                .list();
     }
 
     private Finding map(ResultSet rs, int i) throws SQLException {

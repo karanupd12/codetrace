@@ -86,6 +86,61 @@
   color-scheme: dark;
 }
 
+/* Category colours: identity, not status. Marks use the base colour; text on a tinted chip uses -fg on -subtle
+   (every such pair is at least 4.5:1). Status stays green, yellow, orange and red. */
+:root {
+  --blue: #2a78d6;
+  --blue-fg: #1d5fae;
+  --blue-subtle: #e6f0fb;
+  --teal: #1baf7a;
+  --teal-fg: #0b6e4b;
+  --teal-subtle: #e0f4ec;
+  --violet: #6250d6;
+  --violet-fg: #4c3cbf;
+  --violet-subtle: #eeebfb;
+  --pink: #e87ba4;
+  --pink-fg: #a8305f;
+  --pink-subtle: #fbe8ef;
+  --page: #f7f8fa;
+  --hero: linear-gradient(120deg, #e3f3e8 0%, #e6f0fb 55%, #eeebfb 100%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --blue: #3987e5;
+    --blue-fg: #7db3f2;
+    --blue-subtle: #13233a;
+    --teal: #199e70;
+    --teal-fg: #4fd1a1;
+    --teal-subtle: #0f2a21;
+    --violet: #9085e9;
+    --violet-fg: #b0a7f2;
+    --violet-subtle: #1f1b38;
+    --pink: #d55181;
+    --pink-fg: #ee8db2;
+    --pink-subtle: #2e1520;
+    --page: #0a0d11;
+    --hero: linear-gradient(120deg, #14281b 0%, #13233a 55%, #1f1b38 100%);
+  }
+}
+
+:root[data-theme="dark"] {
+  --blue: #3987e5;
+  --blue-fg: #7db3f2;
+  --blue-subtle: #13233a;
+  --teal: #199e70;
+  --teal-fg: #4fd1a1;
+  --teal-subtle: #0f2a21;
+  --violet: #9085e9;
+  --violet-fg: #b0a7f2;
+  --violet-subtle: #1f1b38;
+  --pink: #d55181;
+  --pink-fg: #ee8db2;
+  --pink-subtle: #2e1520;
+  --page: #0a0d11;
+  --hero: linear-gradient(120deg, #14281b 0%, #13233a 55%, #1f1b38 100%);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -97,7 +152,7 @@ body {
 }
 
 body {
-  background: var(--canvas);
+  background: var(--page);
   color: var(--fg);
   font-family: var(--font);
   font-size: 14px;

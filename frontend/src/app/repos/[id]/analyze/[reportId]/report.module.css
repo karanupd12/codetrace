@@ -1,5 +1,6 @@
 .page {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
 }
 
@@ -41,102 +42,6 @@
 
 .muted {
   color: var(--muted);
-}
-
-/* ---- summary ---- */
-.summary {
-  display: grid;
-  gap: 18px;
-  padding: 22px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--subtle);
-}
-
-.summaryTop {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 220px;
-  gap: 24px;
-  align-items: start;
-}
-
-.verdict {
-  display: grid;
-  gap: 10px;
-  justify-items: start;
-}
-
-.verdict h2 {
-  font-size: 20px;
-  line-height: 1.35;
-}
-
-.versions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  color: var(--muted);
-}
-
-.scoreBox {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: baseline;
-  gap: 4px 6px;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--canvas);
-}
-
-.score {
-  font-size: 34px;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.scoreOf {
-  color: var(--muted);
-}
-
-.scoreBox > div {
-  grid-column: 1 / -1;
-  margin-top: 8px;
-}
-
-.why {
-  display: grid;
-  gap: 10px;
-}
-
-.why ul {
-  display: grid;
-  gap: 4px;
-  margin: 0;
-  padding-left: 20px;
-}
-
-.factors {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.factors td {
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--border-muted);
-  vertical-align: top;
-}
-
-.factors td:first-child {
-  text-transform: capitalize;
-  white-space: nowrap;
-}
-
-.num {
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
 }
 
 /* ---- finding lists ---- */
@@ -185,6 +90,7 @@
 
 .rowMain {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px;
   min-width: 0;
 }
@@ -213,38 +119,6 @@
   color: var(--muted);
 }
 
-.chain {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  padding-left: 20px;
-  font-size: 13px;
-}
-
-.hop {
-  overflow-wrap: anywhere;
-}
-
-.hop code {
-  font-size: 12.5px;
-}
-
-.hopVerb {
-  color: var(--muted);
-}
-
-.hopWhere {
-  margin-left: 6px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-@media (max-width: 760px) {
-  .summaryTop {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* "Why?" opens the evidence chain in place */
 .why2 > summary {
   display: inline-flex;
@@ -268,4 +142,116 @@
 
 .why2[open] > summary {
   margin-bottom: 6px;
+}
+
+.why2 > summary {
+  align-items: center;
+  gap: 4px;
+}
+
+/* ---- hero ---- */
+.hero {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 28px;
+  align-items: center;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--hero);
+}
+
+.heroGauge {
+  display: grid;
+  justify-items: center;
+  padding: 16px 8px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--canvas);
+  box-shadow: var(--shadow);
+}
+
+.heroMain {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  min-width: 0;
+}
+
+.heroMain h2 {
+  font-size: 20px;
+  line-height: 1.35;
+}
+
+.versions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.versionChip {
+  max-width: 100%;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--canvas);
+  color: var(--fg);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- charts ---- */
+.charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
+.sectionTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lands {
+  display: grid;
+  gap: 20px;
+}
+
+.block {
+  display: grid;
+  gap: 10px;
+}
+
+.block h3 {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.quiet {
+  margin-top: 14px;
+}
+
+.footnote {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.anchor {
+  scroll-margin-top: 110px;
+}
+
+@media (max-width: 900px) {
+  .hero,
+  .charts {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
