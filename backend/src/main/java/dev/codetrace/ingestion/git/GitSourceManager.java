@@ -118,6 +118,7 @@ public class GitSourceManager {
             try (Repository bare = openBare(dir); Git git = new Git(bare)) {
                 StoredConfig config = bare.getConfig();
                 config.setString("http", null, "followRedirects", "false");
+                config.setInt("gc", null, "auto", 0); // no background clean-up racing the size checks
                 config.setString("remote", "origin", "url", url);
                 config.save();
                 String branch = fresh ? defaultBranch(git) : bare.getBranch();
@@ -198,11 +199,23 @@ public class GitSourceManager {
         return Path.of(props.workspaceDir()).toAbsolutePath().normalize().resolve(repositoryId + ".git");
     }
 
+    /** The total size of the files under {@code dir}; files that disappear during the walk are skipped. */
     private static long directoryBytes(Path dir) throws IOException {
+        long[] total = {0};
         if (!Files.exists(dir)) return 0;
-        try (Stream<Path> s = Files.walk(dir)) {
-            return s.filter(Files::isRegularFile).mapToLong(p -> p.toFile().length()).sum();
-        }
+        Files.walkFileTree(dir, new java.nio.file.SimpleFileVisitor<>() {
+            @Override
+            public java.nio.file.FileVisitResult visitFile(Path file, java.nio.file.attribute.BasicFileAttributes attrs) {
+                if (attrs.isRegularFile()) total[0] += attrs.size();
+                return java.nio.file.FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public java.nio.file.FileVisitResult visitFileFailed(Path file, IOException e) {
+                return java.nio.file.FileVisitResult.CONTINUE; // removed while walking, e.g. a lock file
+            }
+        });
+        return total[0];
     }
 
     private static void deleteQuietly(Path dir) {
