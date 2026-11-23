@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="450" viewBox="0 0 1900 450" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#444"/></marker></defs>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="950" y="30" text-anchor="middle" font-size="22" font-weight="700" fill="#222">CODETRACE: How a change gets analysed</text>
+<path d="M420,112 L438,112" fill="none" stroke="#444444" stroke-width="1.6" marker-end="url(#arrow)"/>
+<path d="M708,112 L726,112" fill="none" stroke="#444444" stroke-width="1.6" marker-end="url(#arrow)"/>
+<path d="M996,112 L1014,112" fill="none" stroke="#444444" stroke-width="1.6" marker-end="url(#arrow)"/>
+<path d="M1284,112 L1302,112" fill="none" stroke="#444444" stroke-width="1.6" marker-end="url(#arrow)"/>
+<path d="M1572,112 L1590,112" fill="none" stroke="#444444" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="150" y="80" width="270" height="64" rx="8" fill="#dae8fc" stroke="#6c8ebf" stroke-width="1.5"/>
+<text x="285" y="117.6" text-anchor="middle" font-size="17" font-weight="700" fill="#222222">1  Connect</text>
+<rect x="150" y="164" width="270" height="100" rx="8" fill="#ffffff" stroke="#6c8ebf" stroke-width="1.5"/>
+<text x="285" y="209.55" text-anchor="middle" font-size="13" font-weight="400" fill="#222222">Validate the source, then</text>
+<text x="285" y="227.55" text-anchor="middle" font-size="13" font-weight="400" fill="#222222">fetch its recent commits</text>
+<rect x="150" y="284" width="270" height="70" rx="8" fill="#fffbe6" stroke="#6c8ebf" stroke-width="1.5"/>
+<text x="285" y="314.55" text-anchor="middle" font-size="14" font-weight="700" fill="#222222">Repository and</text>
+<text x="285" y="332.55" text-anchor="middle" font-size="13" font-weight="400" fill="#222222">its revisions</text>
+<rect x="438" y="80" width="270" height="64" rx="8" fill="#dae8fc" stroke="#6c8ebf" stroke-width="1.5"/>
+<text x="573" y="117.6" text-anchor="middle" font-size="17" font-weight="700" fill="#222222">2  Index</text>
+<rect x="438" y="164" width="270" height="100" rx="8" fill="#ffffff" stroke="#6c8ebf" stroke-width="1.5"/>
+<text x="573" y="200.55" text-anchor="middle" font-size="13" font-weight="400" fill="#222222">Parse the Java code and</text>
+<text x="573" y="218.55" text-anchor="middle" font-size="13" font-weight="400" fill="#222222">record what it declares</text>
+<text x="573" y="236.55" text-anchor="middle" font-size="13" font-weight="400" fill="#222222">and references</text>
+<rect x="438" y="284" width="270" height="70" rx="8" fill="#fffbe6" stroke="#6c8ebf" stroke-width="1.5"/>
+<text x="573" y="314.55" text-anchor="middle" font-size="14" font-weight="700" fill="#222222">Symbols and</text>
+<text x="573" y="332.55" text-anchor="middle" font-size="13" font-weight="400" fill="#222222">reference facts</text>
+<rect x="726" y="80" width="270" height="64" rx="8" fill="#d5e8d4" stroke="#82b366" stroke-width="1.5"/>
+<text x="861" y="117.6" text-anchor="middle" font-size="17" font-weight="700" fill="#222222">3  Build graph</text>
+<rect x="726" y="164" width="270" height="100" rx="8" fill="#ffffff" stroke="#82b366" stroke-width="1.5"/>
+<text x="861" y="200.55" text-anchor="middle" font-size="13" font-weight="400" fill="#222222">Resolve references into</text>
+<text x="861" y="218.55" text-anchor="middle" font-size="13" font-weight="400" fill="#222222">evidence-backed</text>
+<text x="861" y="236.55" text-anchor="middle" font-size="13" font-weight="400" fill="#222222">dependency links</text>
+<rect x="726" y="284" width="270" height="70" rx="8" fill="#fffbe6" stroke="#82b366" stroke-width="1.5"/>
+<text x="861" y="314.55" text-anchor="middle" font-size="14" font-weight="700" fill="#222222">Immutable</text>
+<text x="861" y="332.55" text-anchor="middle" font-size="13" font-weight="400" fill="#222222">dependency graph</text>
+<rect x="1014" y="80" width="270" height="64" rx="8" fill="#d5e8d4" stroke="#82b366" stroke-width="1.5"/>
+<text x="1149" y="117.6" text-anchor="middle" font-size="17" font-weight="700" fill="#222222">4  Explore</text>
+<rect x="1014" y="164" width="270" height="100" rx="8" fill="#ffffff" stroke="#82b366" stroke-width="1.5"/>
+<text x="1149" y="200.55" text-anchor="middle" font-size="13" font-weight="400" fill="#222222">Search symbols and</text>
+<text x="1149" y="218.55" text-anchor="middle" font-size="13" font-weight="400" fill="#222222">follow dependencies,</text>
+<text x="1149" y="236.55" text-anchor="middle" font-size="13" font-weight="400" fill="#222222">with evidence per link</text>
+<rect x="1014" y="284" width="270" height="70" rx="8" fill="#fffbe6" stroke="#82b366" stroke-width="1.5"/>
+<text x="1149" y="314.55" text-anchor="middle" font-size="14" font-weight="700" fill="#222222">Interactive</text>
+<text x="1149" y="332.55" text-anchor="middle" font-size="13" font-weight="400" fill="#222222">graph view</text>
+<rect x="1302" y="80" width="270" height="64" rx="8" fill="#e1d5e7" stroke="#9673a6" stroke-width="1.5"/>
+<text x="1437" y="117.6" text-anchor="middle" font-size="17" font-weight="700" fill="#222222">5  Analyse a change</text>
+<rect x="1302" y="164" width="270" height="100" rx="8" fill="#ffffff" stroke="#9673a6" stroke-width="1.5"/>
+<text x="1437" y="200.55" text-anchor="middle" font-size="13" font-weight="400" fill="#222222">Find the changed code</text>
+<text x="1437" y="218.55" text-anchor="middle" font-size="13" font-weight="400" fill="#222222">and who depends on it;</text>
+<text x="1437" y="236.55" text-anchor="middle" font-size="13" font-weight="400" fill="#222222">score the risk</text>
+<rect x="1302" y="284" width="270" height="70" rx="8" fill="#fffbe6" stroke="#9673a6" stroke-width="1.5"/>
+<text x="1437" y="323.55" text-anchor="middle" font-size="14" font-weight="700" fill="#222222">Impact report</text>
+<rect x="1590" y="80" width="270" height="64" rx="8" fill="#ffe6cc" stroke="#d79b00" stroke-width="1.5"/>
+<text x="1725" y="117.6" text-anchor="middle" font-size="17" font-weight="700" fill="#222222">6  Report</text>
+<rect x="1590" y="164" width="270" height="100" rx="8" fill="#ffffff" stroke="#d79b00" stroke-width="1.5"/>
+<text x="1725" y="209.55" text-anchor="middle" font-size="13" font-weight="400" fill="#222222">Render the findings</text>
+<text x="1725" y="227.55" text-anchor="middle" font-size="13" font-weight="400" fill="#222222">as a document</text>
+<rect x="1590" y="284" width="270" height="70" rx="8" fill="#fffbe6" stroke="#d79b00" stroke-width="1.5"/>
+<text x="1725" y="314.55" text-anchor="middle" font-size="14" font-weight="700" fill="#222222">Markdown</text>
+<text x="1725" y="332.55" text-anchor="middle" font-size="13" font-weight="400" fill="#222222">download</text>
+<text x="18" y="217" text-anchor="start" font-size="12" font-weight="700" fill="#555555">What happens</text>
+<text x="18" y="324" text-anchor="start" font-size="12" font-weight="700" fill="#555555">Produces</text>
+<text x="40" y="408" text-anchor="start" font-size="13" font-weight="400" fill="#444444">Stages 1, 2, 3 and 5 run as background jobs in the worker. Exploring and downloading are plain reads. Every result is bound to an exact commit.</text>
+</svg>
