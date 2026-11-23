@@ -3,30 +3,44 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { ImpactReport, Revision } from "@/lib/api";
-import { useRepo } from "@/lib/repo";
-import { plural } from "@/lib/words";
+import { useRepo, type VersionState } from "@/lib/repo";
+import { plural, type Hue } from "@/lib/words";
 import Icon from "@/components/Icon";
 import LiveTimeline from "@/components/LiveTimeline";
 import { prepareTasks, VersionBadge } from "@/components/VersionState";
-import {
-  Badge,
-  Banner,
-  Button,
-  ButtonLink,
-  Card,
-  EmptyState,
-  Help,
-  RelativeTime,
-  RiskBadge,
-  Sha,
-  ShowMore,
-} from "@/components/ui";
+import { Banner, Button, ButtonLink, Card, EmptyState, Help, RelativeTime, RISK_TONE, Sha, ShowMore, riskWord } from "@/components/ui";
+import { IconTile, StatRow, StatTile, Stepper, useToast, type Step } from "@/components/viz";
 import s from "./overview.module.css";
 
 const PAGE = 25;
 
-function VersionRow({ rev, base }: { rev: Revision; base: string }) {
+/** Where a version is in Connected → Scanned → Mapped → Ready. */
+function stepsOf(v: VersionState): Step[] {
+  const scanned = v.state === "ready" || (v.state === "preparing" && v.step === "map") || (v.state === "failed" && !!v.snapshot);
+  const failedAt = v.state === "failed" ? (v.snapshot || v.graphJob ? "map" : "scan") : null;
+  return [
+    { label: "Downloaded", icon: "download", state: "done", sub: "from Git" },
+    {
+      label: "Scanned",
+      icon: "code",
+      sub: "code read",
+      state: scanned ? "done" : failedAt === "scan" ? "failed" : v.state === "preparing" ? "active" : "todo",
+    },
+    {
+      label: "Mapped",
+      icon: "map",
+      sub: "links found",
+      state: v.state === "ready" ? "done" : failedAt === "map" ? "failed" : v.state === "preparing" && v.step === "map" ? "active" : "todo",
+    },
+    { label: "Ready", icon: "pulse", sub: "to analyze", state: v.state === "ready" ? "done" : "todo" },
+  ];
+}
+
+const DOT: Record<VersionState["state"], string> = { ready: s.dotReady, preparing: s.dotPreparing, failed: s.dotFailed, none: "" };
+
+function VersionRow({ rev, base, latest }: { rev: Revision; base: string; latest: boolean }) {
   const { versionOf, prepare } = useRepo();
+  const toast = useToast();
   const v = versionOf(rev.commitHash);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +49,7 @@ function VersionRow({ rev, base }: { rev: Revision; base: string }) {
     setError(null);
     try {
       await prepare(rev.commitHash);
+      toast("Preparing this version");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not start");
     } finally {
@@ -43,75 +58,95 @@ function VersionRow({ rev, base }: { rev: Revision; base: string }) {
   };
   return (
     <li className={s.versionRow}>
-      <div className={s.versionMain}>
-        <span className={s.versionMessage}>{rev.summary || "(no message)"}</span>
-        <span className={s.versionMeta}>
-          <Sha value={rev.commitHash} />
-          {rev.authorTime && (
-            <>
-              <span aria-hidden>·</span>
-              <RelativeTime iso={rev.authorTime} />
-            </>
-          )}
-          {v.state === "failed" && <span className={s.failReason}>{v.reason}</span>}
-          {error && <span className={s.failReason}>{error}</span>}
-        </span>
-      </div>
-      <div className={s.versionActions}>
-        <VersionBadge v={v} />
-        {v.state === "ready" && (
-          <ButtonLink size="sm" href={`${base}/explore?map=${v.snapshot.id}`} icon="map">
-            Open map
-          </ButtonLink>
-        )}
-        {v.state === "none" && (
-          <Button size="sm" loading={busy} onClick={run}>
-            Prepare
-          </Button>
-        )}
-        {v.state === "failed" && (
-          <Button size="sm" icon="refresh" loading={busy} onClick={run}>
-            Try again
-          </Button>
-        )}
-      </div>
-      {v.state === "preparing" && (
-        <div className={s.rowTimeline}>
-          <LiveTimeline compact tasks={prepareTasks(v)} />
+      <span className={s.rail} aria-hidden>
+        <span className={`${s.dot} ${DOT[v.state]}`} />
+      </span>
+      <div className={s.versionBody}>
+        <div className={s.versionMain}>
+          <span className={s.versionMessage}>
+            {rev.summary || "(no message)"}
+            {latest && <span className={s.latestTag}>latest</span>}
+          </span>
+          <span className={s.versionMeta}>
+            <Sha value={rev.commitHash} />
+            {rev.authorTime && (
+              <>
+                <span aria-hidden>·</span>
+                <RelativeTime iso={rev.authorTime} />
+              </>
+            )}
+            {v.state === "failed" && <span className={s.failReason}>{v.reason}</span>}
+            {error && <span className={s.failReason}>{error}</span>}
+          </span>
         </div>
-      )}
+        <div className={s.versionActions}>
+          <VersionBadge v={v} />
+          {v.state === "ready" && (
+            <ButtonLink size="sm" href={`${base}/explore?map=${v.snapshot.id}`} icon="map">
+              Open map
+            </ButtonLink>
+          )}
+          {v.state === "none" && (
+            <Button size="sm" loading={busy} onClick={run}>
+              Prepare
+            </Button>
+          )}
+          {v.state === "failed" && (
+            <Button size="sm" icon="refresh" loading={busy} onClick={run}>
+              Try again
+            </Button>
+          )}
+        </div>
+        {v.state === "preparing" && (
+          <div className={s.rowTimeline}>
+            <LiveTimeline compact tasks={prepareTasks(v)} />
+          </div>
+        )}
+      </div>
     </li>
   );
 }
 
 function LatestVersion({ rev, base }: { rev: Revision; base: string }) {
   const { versionOf, prepare } = useRepo();
+  const toast = useToast();
   const v = versionOf(rev.commitHash);
   const [busy, setBusy] = useState(false);
   const run = async () => {
     setBusy(true);
     try {
       await prepare(rev.commitHash);
+      toast("Preparing the latest version");
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <Card
-      title="Latest version"
-      subtitle={
-        <>
-          {rev.summary} · <Sha value={rev.commitHash} />
-        </>
-      }
-      actions={<VersionBadge v={v} />}
-    >
+    <section className={s.latest}>
+      <div className={s.latestHead}>
+        <div className={s.latestTitle}>
+          <span className={s.eyebrow}>Latest version</span>
+          <h2>{rev.summary || "(no message)"}</h2>
+          <span className={s.versionMeta}>
+            <Sha value={rev.commitHash} />
+            {rev.authorTime && (
+              <>
+                <span aria-hidden>·</span>
+                <RelativeTime iso={rev.authorTime} />
+              </>
+            )}
+          </span>
+        </div>
+        <VersionBadge v={v} />
+      </div>
+      <div className={s.stepper}>
+        <Stepper steps={stepsOf(v)} />
+      </div>
       {v.state === "ready" && (
         <div className={s.readyRow}>
           <p>
-            This version is ready: its code has been scanned and its dependency map has{" "}
-            {plural(v.snapshot.nodeCount ?? 0, "item")} and {plural(v.snapshot.edgeCount ?? 0, "link")}.
+            Its dependency map has {plural(v.snapshot.nodeCount ?? 0, "item")} and {plural(v.snapshot.edgeCount ?? 0, "link")}.
           </p>
           <div className={s.actions}>
             <ButtonLink href={`${base}/analyze`} variant="primary" icon="pulse">
@@ -126,8 +161,7 @@ function LatestVersion({ rev, base }: { rev: Revision; base: string }) {
       {v.state === "none" && (
         <div className={s.readyRow}>
           <p>
-            Prepare this version to explore it and to analyze changes. CODETRACE reads the code and maps what depends on what;
-            it takes a few seconds for most projects.
+            Prepare this version to explore it and to analyze changes. It takes a few seconds for most projects.
             <Help>Nothing from the repository is run. Files are read from Git, parsed, and linked by name and type.</Help>
           </p>
           <div className={s.actions}>
@@ -142,33 +176,63 @@ function LatestVersion({ rev, base }: { rev: Revision; base: string }) {
           <LiveTimeline tasks={prepareTasks(v)} onRetry={run} />
         </div>
       )}
-    </Card>
+    </section>
   );
 }
 
-function RecentAnalyses({ reports, base }: { reports: ImpactReport[]; base: string }) {
+const STRIPE: Record<string, string> = { green: s.stripeGreen, yellow: s.stripeYellow, orange: s.stripeOrange, red: s.stripeRed };
+
+function RecentAnalyses({ reports, base, summaryOf }: { reports: ImpactReport[]; base: string; summaryOf: (c: string) => string }) {
   const done = reports.filter((r) => r.status === "COMPLETED").slice(0, 3);
-  if (done.length === 0) return null;
+  if (done.length === 0) {
+    return (
+      <Card title={<span className={s.cardTitle}><IconTile icon="pulse" tone="orange" size={26} />Recent analyses</span>} headingLevel={3}>
+        <p className={s.muted}>No analyses yet. Pick two prepared versions on “Analyze a change” to see what a change could break.</p>
+      </Card>
+    );
+  }
   return (
-    <Card title="Recent analyses" actions={<Link href={`${base}/analyze`}>See all</Link>}>
+    <Card
+      title={<span className={s.cardTitle}><IconTile icon="pulse" tone="orange" size={26} />Recent analyses</span>}
+      headingLevel={3}
+      actions={<Link href={`${base}/analyze`}>See all</Link>}
+    >
       <ul className={s.analyses}>
-        {done.map((r) => (
-          <li key={r.id}>
-            <Link href={`${base}/analyze/${r.id}`} className={s.analysis}>
-              <span className={s.analysisTitle}>
-                <Sha value={r.baseCommit} copy={false} /> <Icon name="arrowRight" size={13} /> <Sha value={r.headCommit} copy={false} />
-              </span>
-              {r.riskLevel && <RiskBadge level={r.riskLevel} />}
-              <span className={s.analysisMeta}>
-                {plural(r.affectedCount ?? 0, "place")} may be affected · {plural(r.testsAffectedCount ?? 0, "test")} to run
-              </span>
-            </Link>
-          </li>
-        ))}
+        {done.map((r) => {
+          const tone = r.riskLevel ? RISK_TONE[r.riskLevel] : "neutral";
+          return (
+            <li key={r.id}>
+              <Link href={`${base}/analyze/${r.id}`} className={`${s.analysis} ${STRIPE[tone] ?? ""}`}>
+                <span className={s.analysisScore}>
+                  <span className={s.analysisNumber}>{r.riskScore ?? 0}</span>
+                  <span className={s.analysisLevel}>{r.riskLevel ? riskWord(r.riskLevel) : ""}</span>
+                </span>
+                <span className={s.analysisBody}>
+                  <span className={s.analysisTitle}>{summaryOf(r.headCommit)}</span>
+                  <span className={s.analysisMeta}>
+                    <span className={s.metaItem}>
+                      <Icon name="alert" size={12} /> {(r.affectedCount ?? 0) - (r.testsAffectedCount ?? 0)} code
+                    </span>
+                    <span className={s.metaItem}>
+                      <Icon name="test" size={12} /> {r.testsAffectedCount ?? 0} tests
+                    </span>
+                    <RelativeTime iso={r.completedAt ?? r.createdAt} />
+                  </span>
+                </span>
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </Card>
   );
 }
+
+const HOW: { icon: "play" | "pulse" | "map"; tone: Hue; title: string; text: string }[] = [
+  { icon: "play", tone: "green", title: "Prepare", text: "two versions: the code before and after a change." },
+  { icon: "pulse", tone: "orange", title: "Analyze the change", text: "to see what it touches and which tests to run." },
+  { icon: "map", tone: "teal", title: "Explore", text: "the dependency map to see how any two parts connect." },
+];
 
 export default function Overview() {
   const { data } = useRepo();
@@ -195,41 +259,62 @@ export default function Overview() {
   }
 
   const prepared = data.revisions.filter((r) => data.snapshots.some((s2) => s2.commitHash === r.commitHash && s2.status === "PUBLISHED")).length;
+  const completed = data.reports.filter((r) => r.status === "COMPLETED");
+  const last = completed[0];
+  const summaryOf = (c: string) => data.revisions.find((r) => r.commitHash === c)?.summary || c.slice(0, 7);
+  const lastTone = (last?.riskLevel ? RISK_TONE[last.riskLevel] : "neutral") as Hue;
 
   return (
-    <div className={s.grid}>
-      <div className={s.mainCol}>
-        <LatestVersion rev={data.revisions[0]} base={base} />
-        <Card
-          title="Versions"
-          subtitle={`${plural(data.revisions.length, "recent commit")} on ${data.repo.defaultBranch ?? "the default branch"} · ${prepared} prepared`}
-          padded={false}
-        >
-          <ul className={s.versions}>
-            {data.revisions.slice(0, shown).map((r) => (
-              <VersionRow key={r.commitHash} rev={r} base={base} />
-            ))}
-          </ul>
-          <div className={s.moreWrap}>
-            <ShowMore shown={Math.min(shown, data.revisions.length)} total={data.revisions.length} noun="versions" onMore={() => setShown((n) => n + PAGE)} />
+    <div className={s.page}>
+      <StatRow>
+        <StatTile icon="commit" tone="blue" value={data.revisions.length} label="recent versions" onClick={() => document.getElementById("versions")?.scrollIntoView({ behavior: "smooth" })} />
+        <StatTile icon="check" tone="green" value={prepared} label={prepared === 1 ? "version prepared" : "versions prepared"} />
+        <StatTile icon="pulse" tone="violet" value={completed.length} label={completed.length === 1 ? "analysis" : "analyses"} href={`${base}/analyze`} />
+        <StatTile
+          icon="alert"
+          tone={lastTone}
+          value={last?.riskScore ?? 0}
+          display={last?.riskLevel ? riskWord(last.riskLevel) : "–"}
+          label={last ? "latest analysis" : "no analysis yet"}
+          href={last ? `${base}/analyze/${last.id}` : undefined}
+        />
+      </StatRow>
+      <div className={s.grid}>
+        <div className={s.mainCol}>
+          <LatestVersion rev={data.revisions[0]} base={base} />
+          <div id="versions" className={s.anchor}>
+            <Card
+              title={<span className={s.cardTitle}><IconTile icon="commit" tone="blue" size={26} />Versions</span>}
+              subtitle={`${plural(data.revisions.length, "recent commit")} on ${data.repo.defaultBranch ?? "the default branch"} · ${prepared} prepared`}
+              padded={false}
+            >
+              <ul className={s.versions}>
+                {data.revisions.slice(0, shown).map((r, i) => (
+                  <VersionRow key={r.commitHash} rev={r} base={base} latest={i === 0} />
+                ))}
+              </ul>
+              <div className={s.moreWrap}>
+                <ShowMore shown={Math.min(shown, data.revisions.length)} total={data.revisions.length} noun="versions" onMore={() => setShown((n) => n + PAGE)} />
+              </div>
+            </Card>
           </div>
-        </Card>
-      </div>
-      <div className={s.sideCol}>
-        <RecentAnalyses reports={data.reports} base={base} />
-        <Card title="How it works" headingLevel={3}>
-          <ol className={s.how}>
-            <li>
-              <Badge tone="neutral">1</Badge> <strong>Prepare</strong> two versions (the code before and after a change).
-            </li>
-            <li>
-              <Badge tone="neutral">2</Badge> <strong>Analyze the change</strong> to see what it touches and which tests to run.
-            </li>
-            <li>
-              <Badge tone="neutral">3</Badge> <strong>Explore</strong> the dependency map to see how any two parts connect.
-            </li>
-          </ol>
-        </Card>
+        </div>
+        <div className={s.sideCol}>
+          <RecentAnalyses reports={data.reports} base={base} summaryOf={summaryOf} />
+          <Card title="How it works" headingLevel={3}>
+            <ol className={s.how}>
+              {HOW.map((h, i) => (
+                <li key={h.title}>
+                  <IconTile icon={h.icon} tone={h.tone} size={32} />
+                  <span>
+                    <span className={s.howStep}>Step {i + 1}</span>
+                    <strong>{h.title}</strong> {h.text}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </Card>
+        </div>
       </div>
     </div>
   );

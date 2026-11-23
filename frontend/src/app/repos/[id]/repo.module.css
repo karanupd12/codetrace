@@ -1,6 +1,6 @@
 .repoHeader {
   border-bottom: 1px solid var(--border);
-  background: var(--subtle);
+  background: var(--canvas);
 }
 
 .repoHeaderInner {
@@ -87,7 +87,7 @@
 .tab[aria-current="page"] {
   color: var(--fg);
   font-weight: 600;
-  border-bottom-color: var(--orange);
+  border-bottom-color: var(--c);
 }
 
 .page {
@@ -186,6 +186,105 @@
 
   .crumb,
   .slash {
+    display: none;
+  }
+}
+
+/* each tab has its own colour: the icon always, the underline when it is the current tab */
+.tab-blue {
+  --c: var(--blue);
+}
+
+.tab-orange {
+  --c: var(--orange);
+}
+
+.tab-teal {
+  --c: var(--teal);
+}
+
+.tab-violet {
+  --c: var(--violet);
+}
+
+.tab-pink {
+  --c: var(--pink);
+}
+
+.tab svg {
+  color: var(--c);
+}
+
+.tabCount {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--inset);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.tabLive {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse 1.6s ease-out infinite;
+}
+
+.lang {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 4px;
+  color: var(--muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.langDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #b07219;
+}
+
+.jump {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 6px 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--subtle);
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.jump:hover {
+  border-color: var(--muted);
+  color: var(--fg);
+}
+
+.jump kbd {
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--canvas);
+  font-size: 11px;
+  line-height: 18px;
+}
+
+@media (max-width: 720px) {
+  .jumpText,
+  .jump kbd,
+  .lang {
     display: none;
   }
 }

@@ -2,47 +2,59 @@
 
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { isActive, resync } from "@/lib/api";
 import { RepoProvider, useRepo } from "@/lib/repo";
-import { JOB_TITLE } from "@/lib/words";
+import { JOB_TITLE, type Hue } from "@/lib/words";
+import CommandPalette from "@/components/CommandPalette";
 import Icon, { type IconName } from "@/components/Icon";
 import LiveTimeline from "@/components/LiveTimeline";
 import { Badge, Banner, Button, Skeleton } from "@/components/ui";
+import { RepoAvatar, ToastProvider } from "@/components/viz";
 import s from "./repo.module.css";
 
-const TABS: { href: string; label: string; icon: IconName }[] = [
-  { href: "", label: "Overview", icon: "repo" },
-  { href: "/analyze", label: "Analyze a change", icon: "pulse" },
-  { href: "/explore", label: "Explore", icon: "map" },
-  { href: "/code", label: "Code", icon: "code" },
-  { href: "/activity", label: "Activity", icon: "list" },
+const TABS: { href: string; label: string; icon: IconName; tone: Hue }[] = [
+  { href: "", label: "Overview", icon: "repo", tone: "blue" },
+  { href: "/analyze", label: "Analyze a change", icon: "pulse", tone: "orange" },
+  { href: "/explore", label: "Explore", icon: "map", tone: "teal" },
+  { href: "/code", label: "Code", icon: "code", tone: "violet" },
+  { href: "/activity", label: "Activity", icon: "list", tone: "pink" },
 ];
 
-function RepoHeader() {
+function RepoHeader({ onJump }: { onJump: () => void }) {
   const { data, reload } = useRepo();
   const pathname = usePathname();
   const params = useParams<{ id: string }>();
   const [checking, setChecking] = useState(false);
   const base = `/repos/${params.id}`;
   const repo = data?.repo;
+  const analyses = data?.reports.filter((r) => r.status === "COMPLETED").length ?? 0;
+  const running = data?.jobs.some((j) => isActive(j.status)) ?? false;
 
   return (
     <div className={s.repoHeader}>
       <div className={s.repoHeaderInner}>
         <div className={s.titleRow}>
           <div className={s.title}>
-            <Icon name="repo" size={18} />
+            <RepoAvatar name={repo?.displayName ?? ""} size={34} />
             <Link href="/" className={s.crumb}>
               Repositories
             </Link>
             <span className={s.slash}>/</span>
             <h1>{repo?.displayName ?? "…"}</h1>
+            <span className={s.lang}>
+              <span className={s.langDot} aria-hidden /> Java
+            </span>
             {repo?.syncStatus === "PENDING" && <Badge tone="yellow" dot>Connecting</Badge>}
             {repo?.syncStatus === "FAILED" && <Badge tone="red" dot>Connection failed</Badge>}
           </div>
           {repo && (
             <div className={s.titleActions}>
+              <button type="button" className={s.jump} onClick={onJump} aria-label="Jump to (Ctrl+K)">
+                <Icon name="search" size={14} />
+                <span className={s.jumpText}>Jump to…</span>
+                <kbd>Ctrl K</kbd>
+              </button>
               {repo.originUrl && (
                 <a href={repo.originUrl} target="_blank" rel="noreferrer" className={s.origin}>
                   <Icon name="link" size={14} /> View on GitHub
@@ -72,9 +84,11 @@ function RepoHeader() {
             const href = base + t.href;
             const active = t.href === "" ? pathname === base : pathname.startsWith(href);
             return (
-              <Link key={t.label} href={href} className={s.tab} aria-current={active ? "page" : undefined}>
+              <Link key={t.label} href={href} className={`${s.tab} ${s[`tab-${t.tone}`]}`} aria-current={active ? "page" : undefined}>
                 <Icon name={t.icon} size={15} />
                 {t.label}
+                {t.href === "/analyze" && analyses > 0 && <span className={s.tabCount}>{analyses}</span>}
+                {t.href === "/activity" && running && <span className={s.tabLive} title="Something is running" />}
               </Link>
             );
           })}
@@ -143,11 +157,25 @@ function Body({ children }: { children: ReactNode }) {
 
 export default function RepoLayout({ children }: { children: ReactNode }) {
   const params = useParams<{ id: string }>();
+  const [palette, setPalette] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPalette((p) => !p);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   return (
     <RepoProvider repoId={params.id}>
-      <RepoHeader />
-      <Body>{children}</Body>
-      <RunningNow />
+      <ToastProvider>
+        <RepoHeader onJump={() => setPalette(true)} />
+        <Body>{children}</Body>
+        <RunningNow />
+        <CommandPalette open={palette} onClose={() => setPalette(false)} />
+      </ToastProvider>
     </RepoProvider>
   );
 }

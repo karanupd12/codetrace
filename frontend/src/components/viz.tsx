@@ -290,6 +290,24 @@ export function ChainView({ chain }: { chain: Hop[] }) {
   );
 }
 
+// ---- avatar ----
+
+const AVATAR_HUES: Hue[] = ["blue", "teal", "violet", "pink", "green", "orange"];
+
+/** A repository's initials on a colour picked from its name, so each repository keeps its colour. */
+export function RepoAvatar({ name, size = 36 }: { name: string; size?: number }) {
+  const short = name.slice(name.lastIndexOf("/") + 1) || name;
+  const words = short.split(/[^A-Za-z0-9]+/).filter(Boolean);
+  const initials = (words.length > 1 ? words[0][0] + words[1][0] : short.slice(0, 2)).toUpperCase();
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return (
+    <span className={`${s.avatar} ${hue(AVATAR_HUES[h % AVATAR_HUES.length])}`} style={{ width: size, height: size, fontSize: size * 0.4 }} aria-hidden>
+      {initials || "?"}
+    </span>
+  );
+}
+
 // ---- toast ----
 
 const ToastContext = createContext<(message: string) => void>(() => undefined);

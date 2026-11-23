@@ -1,0 +1,142 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  justify-items: center;
+  align-items: start;
+  padding: 12vh 16px 16px;
+  background: color-mix(in srgb, var(--header) 45%, transparent);
+  animation: fade 0.15s ease both;
+}
+
+.box {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: 600px;
+  max-width: 100%;
+  max-height: 70vh;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--canvas);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  animation: drop 0.18s ease both;
+}
+
+.inputRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-muted);
+  color: var(--muted);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--fg);
+  font-size: 15px;
+}
+
+.list {
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.group {
+  padding: 8px 10px 4px;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.item[aria-selected="true"] {
+  background: var(--inset);
+}
+
+.item > svg {
+  color: var(--muted);
+}
+
+.itemText {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.itemLabel,
+.itemHint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemLabel {
+  font-weight: 500;
+}
+
+.itemHint {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.empty {
+  padding: 18px 10px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.footer {
+  display: flex;
+  gap: 16px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border-muted);
+  background: var(--subtle);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--canvas);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 18px;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes drop {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+}
